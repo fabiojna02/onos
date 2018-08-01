@@ -97,6 +97,12 @@ filegroup(
     name = "_src_main_webapp_files",
     srcs = glob([
         "src/main/webapp/**",
+    ], exclude = [
+        "src/main/webapp/tests/**",
+        "src/main/webapp/node_modules/**",
+        "src/main/webapp/dist/**",
+        "src/main/webapp/vendor/**",
+        "src/main/webapp/npm-debug.log",
     ]),
 )
 
@@ -119,7 +125,9 @@ genrule(
     outs = ["onos-gui-npm-install.tar"],
     cmd = " ROOT=`pwd` &&" +
           " export XDG_CONFIG_HOME=$(@D)/config &&" +  # npm config cache to the sandbos
-          " export BABEL_DISABLE_CACHE=1" +  # turn off babel cache
+          " export BABEL_DISABLE_CACHE=1 &&" +  # turn off babel cache
+          " export bower_storage__packages=.bower &&" +
+          " export bower_storage__registry=.bower &&" +
           " NPM=$$ROOT/$(location @nodejs//:bin/npm) &&" +
           " mkdir -p tools/gui &&" +
           " cd tools/gui &&" +
@@ -144,13 +152,15 @@ genrule(
     cmd = "(ROOT=`pwd` &&" +
           " export XDG_CONFIG_HOME=$(@D)/config &&" +
           " export BABEL_DISABLE_CACHE=1" +
+          " export bower_storage__packages=.bower &&" +
+          " export bower_storage__registry=.bower &&" +
           " NPM=$(location @nodejs//:bin/npm) &&" +
           " (mkdir -p web/gui && cd web/gui && tar xf ../../$(location :_web_app_all)) &&" +
           " mkdir -p tools/gui && cd tools/gui &&" +
           " tar xf $$ROOT/$(location :_onos-gui-npm-install) &&" +
           " $$ROOT/$$NPM run build --no-cache --loglevel=error >npm-build.out &&" +
           " cd ../../web/gui/src/main/webapp &&" +
-          " jar cf $$ROOT/$@ dist vendor data tests README.md _doc _dev app/fw app/*.css app/*.js app/*.txt)",
+          " jar cf $$ROOT/$@ dist vendor data README.md _doc _dev app/fw app/*.css app/*.js app/*.txt)",
 )
 
 """
@@ -161,7 +171,7 @@ genrule(
     name = "_web_app_all",
     srcs = [":_src_main_webapp_files"],
     outs = ["web_app_all.tar"],
-    cmd = "cd web/gui && tar hcf ../../$@ src/main/webapp",
+    cmd = "cd web/gui && du -hHs src/main/webapp && tar hcf ../../$@ src/main/webapp",
 )
 
 """
