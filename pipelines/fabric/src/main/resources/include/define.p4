@@ -53,6 +53,14 @@
 #define GTPU_VERSION 0x01
 #define GTP_PROTOCOL_TYPE_GTP 0x01
 
+#define PKT_INSTANCE_TYPE_NORMAL 0
+#define PKT_INSTANCE_TYPE_INGRESS_CLONE 1
+#define PKT_INSTANCE_TYPE_EGRESS_CLONE 2
+#define PKT_INSTANCE_TYPE_COALESCED 3
+#define PKT_INSTANCE_TYPE_INGRESS_RECIRC 4
+#define PKT_INSTANCE_TYPE_REPLICATION 5
+#define PKT_INSTANCE_TYPE_RESUBMIT 6
+
 typedef bit<3>  fwd_type_t;
 typedef bit<32> next_id_t;
 typedef bit<20> mpls_label_t;
@@ -60,6 +68,21 @@ typedef bit<9>  port_num_t;
 typedef bit<48> mac_addr_t;
 typedef bit<16> group_id_t;
 typedef bit<12> vlan_id_t;
+typedef bit<48> timestamp_t;
+typedef bit<32> switch_id_t;
+typedef bit<32> ipv4_addr_t;
+typedef bit<16> l4_port_t;
+
+// SPGW types
+typedef bit<2> direction_t;
+typedef bit pcc_gate_status_t;
+typedef bit<32> sdf_rule_id_t;
+typedef bit<32> pcc_rule_id_t;
+
+// spgw.p4 expects uplink packets with IP dst on this subnet
+// 140.0.0.0/8
+const ipv4_addr_t S1U_SGW_PREFIX = 2348810240;
+#define S1U_SGW_PREFIX_LEN 8
 
 const bit<16> ETHERTYPE_QINQ = 0x88A8;
 const bit<16> ETHERTYPE_QINQ_NON_STD = 0x9100;
@@ -87,18 +110,32 @@ const fwd_type_t FWD_IPV6_MULTICAST = 5;
 const bit<8> DEFAULT_MPLS_TTL = 64;
 const bit<8> DEFAULT_IPV4_TTL = 64;
 
-typedef bit direction_t;
-typedef bit pcc_gate_status_t;
-typedef bit<32> sdf_rule_id_t;
-typedef bit<32> pcc_rule_id_t;
-
 const sdf_rule_id_t DEFAULT_SDF_RULE_ID = 0;
 const pcc_rule_id_t DEFAULT_PCC_RULE_ID = 0;
-
-const direction_t DIR_UPLINK = 1w0;
-const direction_t DIR_DOWNLINK = 1w1;
-
+const direction_t SPGW_DIR_UNKNOWN = 2w0;
+const direction_t SPGW_DIR_UPLINK = 2w1;
+const direction_t SPGW_DIR_DOWNLINK = 2w2;
 const pcc_gate_status_t PCC_GATE_OPEN = 1w0;
 const pcc_gate_status_t PCC_GATE_CLOSED = 1w1;
+
+/* indicate INT at LSB of DSCP */
+const bit<6> INT_DSCP = 0x1;
+
+const bit<8> INT_HEADER_LEN_WORD = 4;
+
+const bit<8> CPU_MIRROR_SESSION_ID = 250;
+const bit<32> REPORT_MIRROR_SESSION_ID = 500;
+
+const bit<4> NPROTO_ETHERNET = 0;
+const bit<4> NPROTO_TELEMETRY_DROP_HEADER = 1;
+const bit<4> NPROTO_TELEMETRY_SWITCH_LOCAL_HEADER = 2;
+
+const bit<6> HW_ID = 1;
+const bit<8> REPORT_FIXED_HEADER_LEN = 12;
+const bit<8> DROP_REPORT_HEADER_LEN = 12;
+const bit<8> LOCAL_REPORT_HEADER_LEN = 16;
+const bit<8> ETH_HEADER_LEN = 14;
+const bit<8> IPV4_MIN_HEAD_LEN = 20;
+const bit<8> UDP_HEADER_LEN = 8;
 
 #endif

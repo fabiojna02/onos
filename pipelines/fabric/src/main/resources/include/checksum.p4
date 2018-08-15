@@ -29,7 +29,8 @@ control FabricComputeChecksum(inout parsed_headers_t hdr,
             {
                 hdr.ipv4.version,
                 hdr.ipv4.ihl,
-                hdr.ipv4.diffserv,
+                hdr.ipv4.dscp,
+                hdr.ipv4.ecn,
                 hdr.ipv4.total_len,
                 hdr.ipv4.identification,
                 hdr.ipv4.flags,
@@ -57,7 +58,8 @@ control FabricVerifyChecksum(inout parsed_headers_t hdr,
             {
                 hdr.ipv4.version,
                 hdr.ipv4.ihl,
-                hdr.ipv4.diffserv,
+                hdr.ipv4.dscp,
+                hdr.ipv4.ecn,
                 hdr.ipv4.total_len,
                 hdr.ipv4.identification,
                 hdr.ipv4.flags,
@@ -70,9 +72,6 @@ control FabricVerifyChecksum(inout parsed_headers_t hdr,
             hdr.ipv4.hdr_checksum,
             HashAlgorithm.csum16
         );
-#ifdef WITH_SPGW
-        verify_gtpu_checksum.apply(hdr.gtpu_ipv4);
-#endif // WITH_SPGW
     }
 }
 

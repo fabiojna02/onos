@@ -20,7 +20,12 @@ load("//tools/build/bazel:generate_test_rules.bzl", "generate_test_rules")
 load("//tools/build/bazel:checkstyle.bzl", "checkstyle_test")
 load("//tools/build/bazel:pom_file.bzl", "pom_file")
 load("//tools/build/bazel:java_sources.bzl", "java_sources")
+load("//tools/build/bazel:java_sources.bzl", "java_sources_alt")
 load("//tools/build/bazel:javadoc.bzl", "javadoc")
+load("@io_grpc_grpc_java//:java_grpc_library.bzl", "java_grpc_library")
+
+def _auto_name():
+    return "onos-" + native.package_name().replace("/", "-")
 
 def _all_java_sources():
     return native.glob(["src/main/java/**/*.java"])
@@ -70,6 +75,7 @@ def _bnd_impl(ctx):
     version = ctx.attr.version
     license = ""
     import_packages = ctx.attr.import_packages
+    bundle_classpath = ctx.attr.bundle_classpath
     exportPackages = "*"
     include_resources = ctx.attr.include_resources
     web_context = ctx.attr.web_context
@@ -85,23 +91,11 @@ def _bnd_impl(ctx):
     for dep in ctx.attr.deps:
         if java_common.provider in dep:
             file = dep.files.to_list()[0]
-
             if cp:
                 cp += ":"
             cp += file.path
             inputDependencies = inputDependencies + [file]
 
-    # extract the class files for use by bnd
-    classes = ctx.actions.declare_file("classes" + ctx.label.name.replace("/", "-"))
-    classesPath = classes.path
-    jarCommand = "mkdir -p %s && cp %s %s && cd %s && jar xf *.jar" % (classesPath, jar, classesPath, classesPath)
-    ctx.actions.run_shell(
-        inputs = inputDependencies,
-        outputs = [classes],
-        command = jarCommand,
-        progress_message = "Expanding jar file: %s" % jar,
-    )
-    inputDependencies += [classes]
     web_xml_root_path = ""
     if len(web_xml) != 0:
         web_xml_root = web_xml[0].files.to_list()[0]
@@ -123,7 +117,8 @@ def _bnd_impl(ctx):
         web_context,
         web_xml_root_path,
         dynamicimportPackages,
-        classesPath,
+        "classes",
+        bundle_classpath,
     ]
 
     ctx.actions.run(
@@ -152,6 +147,7 @@ _bnd = rule(
         "group": attr.string(),
         "source": attr.label(),
         "import_packages": attr.string(),
+        "bundle_classpath": attr.string(),
         "web_context": attr.string(),
         "web_xml": attr.label_list(allow_files = True),
         "include_resources": attr.string(),
@@ -372,6 +368,10 @@ def osgi_jar_with_tests(
         include_resources = {},
         test_srcs = None,
         exclude_tests = None,
+        medium_tests = [],
+        large_tests = [],
+        enormous_tests = [],
+        flaky_tests = [],
         test_resources = None,
         visibility = ["//visibility:public"],
         version = ONOS_VERSION,
@@ -383,9 +383,10 @@ def osgi_jar_with_tests(
         api_version = "",
         api_description = "",
         api_package = "",
-        import_packages = None):
+        import_packages = None,
+        bundle_classpath = ""):
     if name == None:
-        name = "onos-" + native.package_name().replace("/", "-")
+        name = _auto_name()
     if srcs == None:
         srcs = _all_java_sources()
     if resources == None:
@@ -460,6 +461,7 @@ def osgi_jar_with_tests(
         group = group,
         visibility = visibility,
         import_packages = import_packages,
+        bundle_classpath = bundle_classpath,
         web_context = web_context,
         web_xml = web_xml,
         include_resources = _include_resources_to_string(include_resources),
@@ -489,6 +491,9 @@ def osgi_jar_with_tests(
             name = name + "-tests-gen",
             test_files = test_srcs,
             exclude_tests = exclude_tests,
+            medium_tests = medium_tests,
+            large_tests = large_tests,
+            enormous_tests = enormous_tests,
             deps = all_test_deps,
         )
 
@@ -506,6 +511,7 @@ def osgi_jar_with_tests(
               For example apps/mcast/app becomes onos-apps-mcast-app
         deps: Dependencies of the generated jar file. Expressed as a list of targets
         import_packages: OSGI import list. Optional, comma separated list, defaults to "*"
+        bundle_classpath: intended for including dependencies in our bundle, so that our bundle can be deployed standalone
         group: Maven group ID for the resulting jar file. Optional, defaults to 'org.onosproject'
         srcs: Source file(s) to compile. Optional list of targets, defaults to src/main/java/**/*.java
         resources_root: Relative path to the root of the tree of resources for this jar. Optional, defaults to src/main/resources
@@ -540,7 +546,8 @@ def osgi_jar(
         api_title = "",
         api_version = "",
         api_description = "",
-        api_package = ""):
+        api_package = "",
+        bundle_classpath = ""):
     if srcs == None:
         srcs = _all_java_sources()
     if deps == None:
@@ -569,4 +576,92 @@ def osgi_jar(
         api_description = api_description,
         api_package = api_package,
         web_context = web_context,
+        bundle_classpath = bundle_classpath,
+    )
+
+
+"""
+    Creates an OSGI jar file from a set of protobuf and gRPC libraries.
+
+    Args:
+        name: Name of the rule to generate. Optional, defaults to a name based on the location in the source tree.
+              For example apps/mcast/app becomes onos-apps-mcast-app
+        proto_libs: (required) list of proto_library targets which generated Java classes will be included to this OSGi
+            jar. It is important that all the given targets reference to a single proto source files, for example
+            only the first 2 rules are good:
+
+            proto_library(
+                name = "foo_proto",
+                srcs = ["foo.proto"],
+            )
+
+            proto_library(
+                name = "bar_proto",
+                srcs = ["bar.proto"],
+            )
+
+            # THIS WILL NOT WORK
+            proto_library(
+                name = "foo_and_bar_proto",
+                srcs = ["foo.proto", "bar.proto"],
+            )
+
+        grpc_proto_lib: (optional) proto_library target that contains the schema of a gRPC service. If not passed,
+            the produced jar will NOT have any gRPC stub classes.
+        deps: Dependencies of the generated jar file. Expressed as a list of targets
+        group: Maven group ID for the resulting jar file. Optional, defaults to 'org.onosproject'
+        visibility: Visibility of the produced jar file to other BUILDs. Optional, defaults to public
+        version: Version of the generated jar file. Optional, defaults to the current ONOS version
+"""
+
+def osgi_proto_jar(
+        proto_libs,
+        grpc_proto_lib = None,
+        name = None,
+        deps = [],
+        group = "org.onosproject",
+        visibility = ["//visibility:public"],
+        version = ONOS_VERSION
+    ):
+    if name == None:
+        name = _auto_name()
+    native.java_proto_library(
+        name = name + "-java-proto",
+        deps = proto_libs,
+    )
+    java_sources_alt(
+        name = name + "-proto-srcjar",
+        srcs = [":%s-java-proto" % name],
+    )
+    osgi_srcs = [
+        ":%s-proto-srcjar" % name,
+    ]
+    base_deps = [
+        "@com_google_protobuf//:protobuf_java",
+    ]
+    if grpc_proto_lib != None:
+        java_grpc_library(
+            name = name + "-java-grpc",
+            srcs = [grpc_proto_lib],
+            deps = [":%s-java-proto" % name],
+        )
+        osgi_srcs.append(
+            ":%s-java-grpc__do_not_reference__srcjar" % name
+        )
+        base_deps.extend([
+            "@com_google_guava_guava//jar",
+            "@io_grpc_grpc_java//core",
+            "@io_grpc_grpc_java//stub",
+            "@io_grpc_grpc_java//protobuf",
+        ])
+    osgi_jar(
+        name = name,
+        srcs = osgi_srcs,
+        deps = base_deps + deps,
+        group = group,
+        visibility = visibility,
+        version = version,
+        suppress_errorprone = True,
+        suppress_checkstyle = True,
+        suppress_javadocs = True,
     )

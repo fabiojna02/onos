@@ -4,6 +4,7 @@ load(":modules.bzl", "APPS", "CORE", "FEATURES")
 filegroup(
     name = "onos",
     srcs = CORE + APPS + [
+        "//tools/build/conf:onos-build-conf",
         ":onos-package-admin",
         ":onos-package-test",
         ":onos-package",
@@ -86,7 +87,7 @@ genrule(
     srcs = [
         ":onos-package",
         "tools/package/onos-run-karaf",
-        ] + glob(["tools/package/config/**"]),
+    ] + glob(["tools/package/config/**"]),
     outs = ["onos-runner"],
     cmd = "sed \"s#ONOS_TAR=#ONOS_TAR=$(location :onos-package)#\" $(location tools/package/onos-run-karaf) > $(location onos-runner); chmod +x $(location onos-runner)",
     executable = True,

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package org.onlab.packet;
 
 import java.nio.ByteBuffer;
@@ -32,7 +31,6 @@ public class ICMP extends BasePacket {
 
     public static final byte TYPE_ECHO_REQUEST = 0x08;
     public static final byte TYPE_ECHO_REPLY = 0x00;
-
     //Uses CODE_ECHO_REPLY instead.
     @Deprecated
     public static final byte SUBTYPE_ECHO_REPLY = 0x00;
@@ -205,15 +203,23 @@ public class ICMP extends BasePacket {
                 case ICMP.TYPE_ECHO_REPLY:
                     Deserializer<ICMPEcho> deserializer = ICMPEcho.deserializer();
                     icmp.payload = deserializer.deserialize(data, bb.position(), ICMPEcho.ICMP_ECHO_HEADER_LENGTH);
+                    bb.position(bb.position() + ICMPEcho.ICMP_ECHO_HEADER_LENGTH);
+                    icmp.payload.setPayload(Data.deserializer().deserialize(
+                            data,
+                            bb.position(),
+                            bb.limit()
+                                    - bb.position()
+                    ));
                     break;
                 default:
                     icmp.payload = Data.deserializer()
                             .deserialize(data, bb.position(), bb.limit()
                                     - bb.position());
+                    break;
             }
 
-            icmp.payload.setParent(icmp);
 
+            icmp.payload.setParent(icmp);
             return icmp;
         };
     }

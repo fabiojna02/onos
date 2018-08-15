@@ -15,10 +15,12 @@
  */
 package org.onosproject.store.atomix.primitives.impl;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.onosproject.store.primitives.NodeUpdate;
 import org.onosproject.store.primitives.TransactionId;
@@ -29,6 +31,8 @@ import org.onosproject.store.service.DocumentTreeListener;
 import org.onosproject.store.service.TransactionLog;
 import org.onosproject.store.service.Version;
 import org.onosproject.store.service.Versioned;
+
+import static org.onosproject.store.atomix.primitives.impl.AtomixFutures.adaptTreeFuture;
 
 /**
  * Atomix document tree.
@@ -54,7 +58,7 @@ public class AtomixDocumentTree<V> implements AsyncDocumentTree<V> {
 
     @Override
     public CompletableFuture<Map<String, Versioned<V>>> getChildren(DocumentPath path) {
-        return atomixTree.getChildren(toAtomixPath(path))
+        return adaptTreeFuture(atomixTree.getChildren(toAtomixPath(path)))
             .thenApply(map -> map.entrySet().stream()
                 .collect(Collectors.toMap(e -> e.getKey(),
                     e -> toVersioned(e.getValue()))));
@@ -62,37 +66,37 @@ public class AtomixDocumentTree<V> implements AsyncDocumentTree<V> {
 
     @Override
     public CompletableFuture<Versioned<V>> get(DocumentPath path) {
-        return atomixTree.get(toAtomixPath(path)).thenApply(this::toVersioned);
+        return adaptTreeFuture(atomixTree.get(toAtomixPath(path))).thenApply(this::toVersioned);
     }
 
     @Override
     public CompletableFuture<Versioned<V>> set(DocumentPath path, V value) {
-        return atomixTree.set(toAtomixPath(path), value).thenApply(this::toVersioned);
+        return adaptTreeFuture(atomixTree.set(toAtomixPath(path), value)).thenApply(this::toVersioned);
     }
 
     @Override
     public CompletableFuture<Boolean> create(DocumentPath path, V value) {
-        return atomixTree.create(toAtomixPath(path), value);
+        return adaptTreeFuture(atomixTree.create(toAtomixPath(path), value));
     }
 
     @Override
     public CompletableFuture<Boolean> createRecursive(DocumentPath path, V value) {
-        return atomixTree.createRecursive(toAtomixPath(path), value);
+        return adaptTreeFuture(atomixTree.createRecursive(toAtomixPath(path), value));
     }
 
     @Override
     public CompletableFuture<Boolean> replace(DocumentPath path, V newValue, long version) {
-        return atomixTree.replace(toAtomixPath(path), newValue, version);
+        return adaptTreeFuture(atomixTree.replace(toAtomixPath(path), newValue, version));
     }
 
     @Override
     public CompletableFuture<Boolean> replace(DocumentPath path, V newValue, V currentValue) {
-        return atomixTree.replace(toAtomixPath(path), newValue, currentValue);
+        return adaptTreeFuture(atomixTree.replace(toAtomixPath(path), newValue, currentValue));
     }
 
     @Override
     public CompletableFuture<Versioned<V>> removeNode(DocumentPath path) {
-        return atomixTree.removeNode(toAtomixPath(path)).thenApply(this::toVersioned);
+        return adaptTreeFuture(atomixTree.remove(toAtomixPath(path))).thenApply(this::toVersioned);
     }
 
     @Override
@@ -104,14 +108,14 @@ public class AtomixDocumentTree<V> implements AsyncDocumentTree<V> {
                 event.newValue().map(this::toVersioned),
                 event.oldValue().map(this::toVersioned)));
         listenerMap.put(listener, atomixListener);
-        return atomixTree.addListener(toAtomixPath(path), atomixListener);
+        return adaptTreeFuture(atomixTree.addListener(toAtomixPath(path), atomixListener));
     }
 
     @Override
     public CompletableFuture<Void> removeListener(DocumentTreeListener<V> listener) {
         io.atomix.core.tree.DocumentTreeEventListener<V> atomixListener = listenerMap.remove(listener);
         if (atomixListener != null) {
-            return atomixTree.removeListener(atomixListener);
+            return adaptTreeFuture(atomixTree.removeListener(atomixListener));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -142,11 +146,15 @@ public class AtomixDocumentTree<V> implements AsyncDocumentTree<V> {
     }
 
     private DocumentPath toOnosPath(io.atomix.core.tree.DocumentPath path) {
-        return DocumentPath.from(path.pathElements());
+        List<String> pathElements = Lists.newArrayList(path.pathElements());
+        pathElements.set(0, DocumentPath.ROOT.pathElements().get(0));
+        return DocumentPath.from(pathElements);
     }
 
     private io.atomix.core.tree.DocumentPath toAtomixPath(DocumentPath path) {
-        return io.atomix.core.tree.DocumentPath.from(path.pathElements());
+        List<String> pathElements = Lists.newArrayList(path.pathElements());
+        pathElements.set(0, "");
+        return io.atomix.core.tree.DocumentPath.from(pathElements);
     }
 
     private Versioned<V> toVersioned(io.atomix.utils.time.Versioned<V> versioned) {

@@ -55,7 +55,6 @@ public class ICMPTest {
         bb.putShort(checksum);
         bb.put(byteBufferIcmpEcho);
 
-
         headerBytes = bb.array();
     }
 

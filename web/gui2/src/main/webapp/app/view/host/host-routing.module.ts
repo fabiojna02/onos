@@ -18,14 +18,14 @@ import { Routes, RouterModule } from '@angular/router';
 import { HostComponent } from './host/host.component';
 
 const hostRoutes: Routes = [
-  {
-    path: '',
-    component: HostComponent
-  }
+    {
+        path: '',
+        component: HostComponent
+    }
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(hostRoutes)],
-  exports: [RouterModule]
+    imports: [RouterModule.forChild(hostRoutes)],
+    exports: [RouterModule]
 })
 export class HostRoutingModule { }

@@ -17,8 +17,8 @@ package org.onlab.packet;
 
 import java.nio.ByteBuffer;
 
-import static org.onlab.packet.PacketUtils.checkInput;
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static org.onlab.packet.PacketUtils.checkInput;
 
 /**
  * ICMP packet class for echo purpose.
@@ -76,6 +76,7 @@ public class ICMPEcho extends BasePacket {
      */
     @Override
     public byte[] serialize() {
+
         int length = ICMP_ECHO_HEADER_LENGTH;
         byte[] payloadData = null;
         if (this.payload != null) {

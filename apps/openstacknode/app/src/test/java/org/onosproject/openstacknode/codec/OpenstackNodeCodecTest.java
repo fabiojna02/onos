@@ -34,7 +34,7 @@ import org.onosproject.openstacknode.api.OpenstackAuth;
 import org.onosproject.openstacknode.api.OpenstackNode;
 import org.onosproject.openstacknode.api.OpenstackPhyInterface;
 import org.onosproject.openstacknode.api.OpenstackSshAuth;
-import org.onosproject.openstacknode.impl.DefaultOpenstackAuth;
+import org.onosproject.openstacknode.api.DefaultOpenstackAuth;
 import org.onosproject.openstacknode.api.DefaultOpenstackNode;
 import org.onosproject.openstacknode.impl.DefaultOpenstackPhyInterface;
 import org.onosproject.openstacknode.impl.DefaultOpenstackSshAuth;
@@ -149,6 +149,7 @@ public class OpenstackNodeCodecTest {
         assertThat(node.controllers().size(), is(2));
         assertThat(node.sshAuthInfo().id(), is("sdn"));
         assertThat(node.sshAuthInfo().password(), is("sdn"));
+        assertThat(node.datapathType(), is(OpenstackNode.DatapathType.NORMAL));
 
         node.phyIntfs().forEach(intf -> {
             if (intf.network().equals("mgmtnetwork")) {
@@ -167,6 +168,10 @@ public class OpenstackNodeCodecTest {
                 assertThat(ctrl.port(), is(6663));
             }
         });
+
+        OpenstackNode dpdkNode = getOpenstackNode("OpenstackDpdkComputeNode.json");
+
+        assertThat(dpdkNode.datapathType(), is(OpenstackNode.DatapathType.NETDEV));
     }
 
     /**

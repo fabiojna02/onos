@@ -15,15 +15,16 @@ osgi_feature(
         "@commons_lang3//jar",
         "@commons_text//jar",
         "@commons_configuration//jar",
-        "@guava//jar",
-        "@netty//jar",
-        "@netty_common//jar",
-        "@netty_buffer//jar",
-        "@netty_transport//jar",
-        "@netty_handler//jar",
-        "@netty_codec//jar",
-        "@netty_transport_native_epoll//jar",
-        "@netty_resolver//jar",
+        "@com_google_guava_guava//jar",
+        "@io_netty_netty//jar",
+        "@io_netty_netty_common//jar",
+        "@io_netty_netty_buffer//jar",
+        "@io_netty_netty_transport//jar",
+        "@io_netty_netty_handler//jar",
+        "@io_netty_netty_codec//jar",
+        "@io_netty_netty_transport_native_epoll//jar",
+        "@io_netty_netty_transport_native_unix_common//jar",
+        "@io_netty_netty_resolver//jar",
         "@commons_pool//jar",
         "@commons_math3//jar",
         "@joda_time//jar",
@@ -58,7 +59,7 @@ osgi_feature(
     description = "ONOS 3rd party dependencies for web apps",
     included_bundles = [
         "@jersey_common//jar",
-        "@javax_annotation_api//jar",
+        "@javax_annotation_api_mvn//jar",
         "@javax_ws_rs_api//jar",
         "@hk2_api//jar",
         "@hk2_locator//jar",
@@ -168,22 +169,26 @@ osgi_feature(
 )
 
 #osgi_feature (
-#  name = "onos-gui2",
-#  description = "ONOS GUI2 console components",
-#  required_features = ["onos-api", "onos-thirdparty-web"],
-#  included_bundles = [
-#    "//lib:jetty_websocket",
-#    "//utils/rest:onlab-rest",
-#    "//web/gui2:onos-gui2",
-#  ]
+#    name = "onos-gui2",
+#    description = "ONOS GUI2 console components",
+#    included_bundles = [
+#        "//web/gui:onos-gui2",
+#        "@jetty_websocket//jar",
+#        "//utils/rest:onlab-rest",
+#    ],
+#    required_features = [
+#        "onos-api",
+#        "onos-thirdparty-web",
+#    ],
 #)
 
-#osgi_feature (
-#  name = "onos-security",
-#  description ="Security-Mode ONOS",
-#  required_features = ["onos-api"],
-#  included_bundles = [
-#    "//lib:org.apache.felix.framework.security",
-#    "//core/security:onos-security",
-#  ]
-#)
+osgi_feature(
+    name = "onos-security",
+    description = "Security-Mode ONOS",
+    included_bundles = [
+        "@org_apache_felix_framework_security//jar",
+        "//core/security:onos-security",
+    ],
+    required_features = ["onos-api"],
+    visibility = ["//visibility:public"],
+)

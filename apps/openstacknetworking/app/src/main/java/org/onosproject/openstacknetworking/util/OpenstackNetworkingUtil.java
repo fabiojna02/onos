@@ -15,12 +15,16 @@
  */
 package org.onosproject.openstacknetworking.util;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Strings;
 import org.onosproject.cfg.ConfigProperty;
 import org.onosproject.net.DeviceId;
+import org.onosproject.net.device.DeviceService;
 import org.onosproject.openstacknetworking.api.InstancePort;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkService;
 import org.onosproject.openstacknetworking.api.OpenstackRouterAdminService;
@@ -56,12 +60,15 @@ import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static org.onosproject.net.AnnotationKeys.PORT_NAME;
 import static org.onosproject.openstacknetworking.api.Constants.PCISLOT;
 import static org.onosproject.openstacknetworking.api.Constants.PCI_VENDOR_INFO;
 import static org.onosproject.openstacknetworking.api.Constants.portNamePrefixMap;
@@ -147,22 +154,18 @@ public final class OpenstackNetworkingUtil {
      */
     public static NetFloatingIP associatedFloatingIp(InstancePort port,
                                                      Set<NetFloatingIP> fips) {
-        try {
-            for (NetFloatingIP fip : fips) {
-                if (Strings.isNullOrEmpty(fip.getFixedIpAddress())) {
-                    continue;
-                }
-                if (Strings.isNullOrEmpty(fip.getFloatingIpAddress())) {
-                    continue;
-                }
-                if (fip.getFixedIpAddress().equals(port.ipAddress().toString())) {
-                    return fip;
-                }
+        for (NetFloatingIP fip : fips) {
+            if (Strings.isNullOrEmpty(fip.getFixedIpAddress())) {
+                continue;
             }
-        } catch (NullPointerException e) {
-            log.error("Exception occurred because of {}", e.toString());
-            throw new NullPointerException();
+            if (Strings.isNullOrEmpty(fip.getFloatingIpAddress())) {
+                continue;
+            }
+            if (fip.getFixedIpAddress().equals(port.ipAddress().toString())) {
+                return fip;
+            }
         }
+
         return null;
     }
 
@@ -289,8 +292,6 @@ public final class OpenstackNetworkingUtil {
      * @return interface name
      */
     public static String getIntfNameFromPciAddress(Port port) {
-
-
         if (port.getProfile() == null || port.getProfile().isEmpty()) {
             log.error("Port profile is not found");
             return null;
@@ -337,6 +338,22 @@ public final class OpenstackNetworkingUtil {
     }
 
     /**
+     * Check if the given interface is added to the given device or not.
+     *
+     * @param deviceId device ID
+     * @param intfName interface name
+     * @param deviceService device service
+     * @return true if the given interface is added to the given device or false otherwise
+     */
+    public static boolean hasIntfAleadyInDevice(DeviceId deviceId, String intfName, DeviceService deviceService) {
+        checkNotNull(deviceId);
+        checkNotNull(intfName);
+
+        return deviceService.getPorts(deviceId).stream()
+                .anyMatch(port -> Objects.equals(port.annotations().value(PORT_NAME), intfName));
+    }
+
+    /**
      * Adds router interfaces to openstack admin service.
      * TODO fix the logic to add router interface to router
      *
@@ -360,6 +377,7 @@ public final class OpenstackNetworkingUtil {
                     adminService.addRouterInterface(rIface);
                 }
             } catch (IOException ignore) {
+                log.error("Exception occurred because of {}", ignore.toString());
             }
         });
     }
@@ -388,8 +406,14 @@ public final class OpenstackNetworkingUtil {
         try {
             Object jsonObject = mapper.readValue(jsonString, Object.class);
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonObject);
+        } catch (JsonParseException e) {
+            log.debug("JsonParseException caused by {}", e);
+        } catch (JsonMappingException e) {
+            log.debug("JsonMappingException caused by {}", e);
+        } catch (JsonProcessingException e) {
+            log.debug("JsonProcessingException caused by {}", e);
         } catch (IOException e) {
-            log.debug("Json string parsing exception caused by {}", e);
+            log.debug("IOException caused by {}", e);
         }
         return null;
     }
@@ -426,6 +450,21 @@ public final class OpenstackNetworkingUtil {
                 .networkId(instPort.networkId())
                 .portId(instPort.portId())
                 .build();
+    }
+
+    /**
+     * Compares two router interfaces are equal.
+     * Will be remove this after Openstack4j implements equals.
+     *
+     * @param routerInterface1 router interface
+     * @param routerInterface2 router interface
+     * @return returns true if two router interfaces are equal, false otherwise
+     */
+    public static boolean routerInterfacesEquals(RouterInterface routerInterface1, RouterInterface routerInterface2) {
+        return Objects.equals(routerInterface1.getId(), routerInterface2.getId()) &&
+                Objects.equals(routerInterface1.getPortId(), routerInterface2.getPortId()) &&
+                Objects.equals(routerInterface1.getSubnetId(), routerInterface2.getSubnetId()) &&
+                Objects.equals(routerInterface1.getTenantId(), routerInterface2.getTenantId());
     }
 
     /**
