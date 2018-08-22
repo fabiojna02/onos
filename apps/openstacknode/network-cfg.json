@@ -25,6 +25,7 @@
               "password" : "password"
             },
             "datapathType" : "netdev",
+            "socketDir" : "/var/lib/libvirt/qemu",
             "controllers": [
               {
                 "ip": "10.10.10.2",
@@ -62,7 +63,7 @@
             "hostname" : "controller",
             "type" : "CONTROLLER",
             "managementIp" : "172.16.130.10",
-            "endPoint" : "keystone-endpoint-url",
+            "endpoint" : "keystone-endpoint-url",
             "authentication" : {
               "version" : "v2.0",
               "port" : 35357,

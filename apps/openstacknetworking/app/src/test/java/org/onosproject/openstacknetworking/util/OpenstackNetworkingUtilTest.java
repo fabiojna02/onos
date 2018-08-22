@@ -36,6 +36,7 @@ import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.device.DeviceServiceAdapter;
+import org.onosproject.openstacknetworking.api.Constants;
 import org.onosproject.openstacknetworking.api.InstancePort;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkService;
 import org.onosproject.openstacknetworking.api.OpenstackRouterAdminService;
@@ -84,6 +85,7 @@ import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.m
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.prettyJson;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.routerInterfacesEquals;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.swapStaleLocation;
+import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.vnicType;
 
 public final class OpenstackNetworkingUtilTest {
 
@@ -397,12 +399,11 @@ public final class OpenstackNetworkingUtilTest {
     /**
      * Tests the getConnectedClient method.
      */
-    @Test(expected = Exception.class)
+    @Test
     public void testGetConnectedClient() {
         OpenstackNode.Builder osNodeBuilderV2 = DefaultOpenstackNode.builder();
         OpenstackAuth.Builder osNodeAuthBuilderV2 = DefaultOpenstackAuth.builder()
                 .version("v2.0")
-                .port(35357)
                 .protocol(OpenstackAuth.Protocol.HTTP)
                 .project("admin")
                 .username("admin")
@@ -412,16 +413,14 @@ public final class OpenstackNetworkingUtilTest {
         openstackControlNodeV2 = osNodeBuilderV2.hostname("controllerv2")
                 .type(OpenstackNode.NodeType.CONTROLLER)
                 .managementIp(IpAddress.valueOf("1.1.1.1"))
-                .endPoint("1.1.1.1")
+                .endpoint("1.1.1.1")
                 .authentication(osNodeAuthBuilderV2.build())
                 .state(NodeState.COMPLETE)
                 .build();
 
-
         OpenstackNode.Builder osNodeBuilderV3 = DefaultOpenstackNode.builder();
         OpenstackAuth.Builder osNodeAuthBuilderV3 = DefaultOpenstackAuth.builder()
                 .version("v2")
-                .port(80)
                 .protocol(OpenstackAuth.Protocol.HTTP)
                 .project("admin")
                 .username("admin")
@@ -431,7 +430,7 @@ public final class OpenstackNetworkingUtilTest {
         openstackControlNodeV3 = osNodeBuilderV3.hostname("controllerv3")
                 .type(OpenstackNode.NodeType.CONTROLLER)
                 .managementIp(IpAddress.valueOf("2.2.2.2"))
-                .endPoint("2.2.2.2")
+                .endpoint("2.2.2.2")
                 .authentication(osNodeAuthBuilderV3.build())
                 .state(NodeState.COMPLETE)
                 .build();
@@ -439,6 +438,22 @@ public final class OpenstackNetworkingUtilTest {
         getConnectedClient(openstackControlNodeV2);
         getConnectedClient(openstackControlNodeV3);
 
+    }
+
+    /**
+     * Tests the vnicType method.
+     */
+    @Test
+    public void testVnicType() {
+        String portNameNormalTap = "tap123456789ab";
+        String portNameNormalVhu = "tap123456789ab";
+        String portNameNormalCavium = "enp1f2s3";
+        String portNameUnsupported = "123456789ab";
+
+        assertEquals(vnicType(portNameNormalTap), Constants.VnicType.NORMAL);
+        assertEquals(vnicType(portNameNormalVhu), Constants.VnicType.NORMAL);
+        assertEquals(vnicType(portNameNormalCavium), Constants.VnicType.DIRECT);
+        assertEquals(vnicType(portNameUnsupported), Constants.VnicType.UNSUPPORTED);
     }
 
     private DeviceId genDeviceId(int index) {

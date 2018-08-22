@@ -172,6 +172,13 @@ public interface OpenstackNode {
     DatapathType datapathType();
 
     /**
+     * Returns socket directory which dpdk port bound to.
+     *
+     * @return socket directory
+     */
+    String socketDir();
+
+    /**
      * Returns the uplink port number.
      *
      * @return uplink port number
@@ -185,6 +192,14 @@ public interface OpenstackNode {
      * @return updated openstack node
      */
     OpenstackNode updateState(NodeState newState);
+
+    /**
+     * Returns new openstack node instance with given integration bridge.
+     *
+     * @param newIntgBridge updated integration bridge
+     * @return updated openstack node
+     */
+    OpenstackNode updateIntbridge(DeviceId newIntgBridge);
 
     /**
      * Returns a collection of physical interfaces.
@@ -213,7 +228,7 @@ public interface OpenstackNode {
      *
      * @return keystone authentication info
      */
-    String endPoint();
+    String endpoint();
 
     /**
      * Returns a collection of customized controllers.
@@ -332,10 +347,10 @@ public interface OpenstackNode {
         /**
          * Returns openstack node builder with supplied endpoint info.
          *
-         * @param endPoint endpoint info
+         * @param endpoint endpoint info
          * @return openstack node builder
          */
-        Builder endPoint(String endPoint);
+        Builder endpoint(String endpoint);
 
         /**
          * Returns openstack node builder with supplied ssh authentication info.
@@ -352,6 +367,14 @@ public interface OpenstackNode {
          * @return openstack node builder
          */
         Builder datapathType(DatapathType datapathType);
+
+        /**
+         * Returns openstack node builder with supplied socket directory.
+         *
+         * @param socketDir socket directory
+         * @return openstack node builder
+         */
+        Builder socketDir(String socketDir);
     }
 }
 

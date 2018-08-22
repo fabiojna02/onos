@@ -424,7 +424,7 @@ public class DefaultOpenstackNodeHandlerTest {
                 ipAddr,
                 ipAddr,
                 null, null, state, phyIntfs, controllers,
-                null, null, null, OpenstackNode.DatapathType.NORMAL);
+                null, null, null, OpenstackNode.DatapathType.NORMAL, null);
     }
 
     private static OpenstackNode createGatewayNode(String hostname,
@@ -440,7 +440,7 @@ public class DefaultOpenstackNodeHandlerTest {
                 ipAddr,
                 ipAddr,
                 null, uplinkPort, state, null, null, null, null, null,
-                OpenstackNode.DatapathType.NORMAL);
+                OpenstackNode.DatapathType.NORMAL, null);
     }
 
     private static final class TestDevice extends DefaultDevice {
@@ -501,9 +501,10 @@ public class DefaultOpenstackNodeHandlerTest {
                                   Set<OpenstackPhyInterface> phyIntfs,
                                   Set<ControllerInfo> controllers,
                                   OpenstackAuth auth,
-                                  String endPoint,
+                                  String endpoint,
                                   OpenstackSshAuth sshAuth,
-                                  DatapathType datapathType) {
+                                  DatapathType datapathType,
+                                  String socketDir) {
             super(hostname,
                     type,
                     intgBridge,
@@ -515,9 +516,10 @@ public class DefaultOpenstackNodeHandlerTest {
                     phyIntfs,
                     controllers,
                     auth,
-                    endPoint,
+                    endpoint,
                     sshAuth,
-                    datapathType);
+                    datapathType,
+                    socketDir);
         }
 
         @Override

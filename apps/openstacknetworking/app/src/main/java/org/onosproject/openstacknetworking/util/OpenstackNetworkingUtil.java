@@ -25,6 +25,7 @@ import com.google.common.base.Strings;
 import org.onosproject.cfg.ConfigProperty;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.device.DeviceService;
+import org.onosproject.openstacknetworking.api.Constants.VnicType;
 import org.onosproject.openstacknetworking.api.InstancePort;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkService;
 import org.onosproject.openstacknetworking.api.OpenstackRouterAdminService;
@@ -71,6 +72,8 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import static org.onosproject.net.AnnotationKeys.PORT_NAME;
 import static org.onosproject.openstacknetworking.api.Constants.PCISLOT;
 import static org.onosproject.openstacknetworking.api.Constants.PCI_VENDOR_INFO;
+import static org.onosproject.openstacknetworking.api.Constants.PORT_NAME_PREFIX_VM;
+import static org.onosproject.openstacknetworking.api.Constants.PORT_NAME_VHOST_USER_PREFIX_VM;
 import static org.onosproject.openstacknetworking.api.Constants.portNamePrefixMap;
 import static org.openstack4j.core.transport.ObjectMapperSingleton.getContext;
 
@@ -467,6 +470,21 @@ public final class OpenstackNetworkingUtil {
                 Objects.equals(routerInterface1.getTenantId(), routerInterface2.getTenantId());
     }
 
+    public static VnicType vnicType(String portName) {
+        if (portName.startsWith(PORT_NAME_PREFIX_VM) ||
+                portName.startsWith(PORT_NAME_VHOST_USER_PREFIX_VM)) {
+            return VnicType.NORMAL;
+        } else if (isDirectPort(portName)) {
+            return VnicType.DIRECT;
+        } else {
+            return VnicType.UNSUPPORTED;
+        }
+    }
+
+    private static boolean isDirectPort(String portName) {
+        return portNamePrefixMap().values().stream().filter(p -> portName.startsWith(p)).findAny().isPresent();
+    }
+
     /**
      * Builds up and a complete endpoint URL from gateway node.
      *
@@ -480,17 +498,7 @@ public final class OpenstackNetworkingUtil {
         StringBuilder endpointSb = new StringBuilder();
         endpointSb.append(auth.protocol().name().toLowerCase());
         endpointSb.append("://");
-        endpointSb.append(node.endPoint());
-        endpointSb.append(":");
-        endpointSb.append(auth.port());
-        endpointSb.append("/");
-
-        // in case the version is v3, we need to append identity path into endpoint
-        if (auth.version().equals(KEYSTONE_V3)) {
-            endpointSb.append(IDENTITY_PATH);
-        }
-
-        endpointSb.append(auth.version());
+        endpointSb.append(node.endpoint());
         return endpointSb.toString();
     }
 

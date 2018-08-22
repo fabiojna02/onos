@@ -59,9 +59,10 @@ public final class OpenstackNodeCodec extends JsonCodec<OpenstackNode> {
     private static final String PHYSICAL_INTERFACES = "phyIntfs";
     private static final String CONTROLLERS = "controllers";
     private static final String AUTHENTICATION = "authentication";
-    private static final String END_POINT = "endPoint";
+    private static final String END_POINT = "endpoint";
     private static final String SSH_AUTH = "sshAuth";
     private static final String DATA_PATH_TYPE = "datapathType";
+    private static final String SOCKET_DIR = "socketDir";
 
     private static final String MISSING_MESSAGE = " is required in OpenstackNode";
     private static final String UNSUPPORTED_DATAPATH_TYPE = "Unsupported datapath type";
@@ -83,10 +84,12 @@ public final class OpenstackNodeCodec extends JsonCodec<OpenstackNode> {
             result.put(UPLINK_PORT, node.uplinkPort());
         }
 
-        if (type != OpenstackNode.NodeType.CONTROLLER) {
+        if (type == OpenstackNode.NodeType.CONTROLLER) {
+            result.put(END_POINT, node.endpoint());
+        }
+
+        if (node.intgBridge() != null) {
             result.put(INTEGRATION_BRIDGE, node.intgBridge().toString());
-        } else {
-            result.put(END_POINT, node.endPoint());
         }
 
         if (node.vlanIntf() != null) {
@@ -125,6 +128,10 @@ public final class OpenstackNodeCodec extends JsonCodec<OpenstackNode> {
             result.set(SSH_AUTH, sshAuthJson);
         }
 
+        if (node.socketDir() != null) {
+            result.put(SOCKET_DIR, node.socketDir());
+        }
+
         return result;
     }
 
@@ -151,20 +158,21 @@ public final class OpenstackNodeCodec extends JsonCodec<OpenstackNode> {
             nodeBuilder.uplinkPort(nullIsIllegal(json.get(UPLINK_PORT).asText(),
                     UPLINK_PORT + MISSING_MESSAGE));
         }
-        if (!type.equals(CONTROLLER)) {
-            String iBridge = nullIsIllegal(json.get(INTEGRATION_BRIDGE).asText(),
-                    INTEGRATION_BRIDGE + MISSING_MESSAGE);
-            nodeBuilder.intgBridge(DeviceId.deviceId(iBridge));
-        } else {
+        if (type.equals(CONTROLLER)) {
             String endPoint = nullIsIllegal(json.get(END_POINT).asText(),
                     END_POINT + MISSING_MESSAGE);
-            nodeBuilder.endPoint(endPoint);
+            nodeBuilder.endpoint(endPoint);
         }
         if (json.get(VLAN_INTF_NAME) != null) {
             nodeBuilder.vlanIntf(json.get(VLAN_INTF_NAME).asText());
         }
         if (json.get(DATA_IP) != null) {
             nodeBuilder.dataIp(IpAddress.valueOf(json.get(DATA_IP).asText()));
+        }
+
+        JsonNode intBridgeJson = json.get(INTEGRATION_BRIDGE);
+        if (intBridgeJson != null) {
+            nodeBuilder.intgBridge(DeviceId.deviceId(intBridgeJson.asText()));
         }
 
         JsonNode datapathTypeJson = json.get(DATA_PATH_TYPE);
@@ -176,6 +184,12 @@ public final class OpenstackNodeCodec extends JsonCodec<OpenstackNode> {
             nodeBuilder.datapathType(OpenstackNode.DatapathType.NETDEV);
         } else {
             throw new IllegalArgumentException(UNSUPPORTED_DATAPATH_TYPE + datapathTypeJson.asText());
+        }
+
+        JsonNode socketDir = json.get(SOCKET_DIR);
+
+        if (socketDir != null) {
+            nodeBuilder.socketDir(socketDir.asText());
         }
 
         // parse physical interfaces

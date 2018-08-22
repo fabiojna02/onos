@@ -110,12 +110,22 @@ public class OpenstackNodeAdapter implements OpenstackNode {
     }
 
     @Override
+    public String socketDir() {
+        return null;
+    }
+
+    @Override
     public PortNumber uplinkPortNum() {
         return null;
     }
 
     @Override
     public OpenstackNode updateState(NodeState newState) {
+        return null;
+    }
+
+    @Override
+    public OpenstackNode updateIntbridge(DeviceId newIntgBridge) {
         return null;
     }
 
@@ -135,7 +145,7 @@ public class OpenstackNodeAdapter implements OpenstackNode {
     }
 
     @Override
-    public String endPoint() {
+    public String endpoint() {
         return null;
     }
 

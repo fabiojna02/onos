@@ -58,6 +58,10 @@ public final class OpenstackNodeUtil {
     private static final String IDENTITY_PATH = "identity/";
     private static final String SSL_TYPE = "SSL";
 
+    private static final int HEX_LENGTH = 16;
+    private static final String OF_PREFIX = "of:";
+    private static final String ZERO = "0";
+
     /**
      * Prevents object installation from external.
      */
@@ -175,6 +179,27 @@ public final class OpenstackNodeUtil {
     }
 
     /**
+     * Generates a DPID (of:0000000000000001) from an index value.
+     *
+     * @param index index value
+     * @return generated DPID
+     */
+    public static String genDpid(long index) {
+        if (index < 0) {
+            return null;
+        }
+
+        String hexStr = Long.toHexString(index);
+
+        StringBuilder zeroPadding = new StringBuilder();
+        for (int i = 0; i < HEX_LENGTH - hexStr.length(); i++) {
+            zeroPadding.append(ZERO);
+        }
+
+        return OF_PREFIX + zeroPadding.toString() + hexStr;
+    }
+
+    /**
      * Builds up and a complete endpoint URL from gateway node.
      *
      * @param node gateway node
@@ -187,17 +212,7 @@ public final class OpenstackNodeUtil {
         StringBuilder endpointSb = new StringBuilder();
         endpointSb.append(auth.protocol().name().toLowerCase());
         endpointSb.append("://");
-        endpointSb.append(node.endPoint());
-        endpointSb.append(":");
-        endpointSb.append(auth.port());
-        endpointSb.append("/");
-
-        // in case the version is v3, we need to append identity path into endpoint
-        if (auth.version().equals(KEYSTONE_V3)) {
-            endpointSb.append(IDENTITY_PATH);
-        }
-
-        endpointSb.append(auth.version());
+        endpointSb.append(node.endpoint());
         return endpointSb.toString();
     }
 
