@@ -411,15 +411,15 @@ public class NetconfSessionMinaImpl extends AbstractNetconfSession {
     @Override
     public void checkAndReestablish() throws NetconfException {
         try {
-            if (client.isClosed()) {
+            if (client.isClosed() || client.isClosing()) {
                 log.debug("Trying to restart the whole SSH connection with {}", deviceInfo.getDeviceId());
                 cleanUp();
                 startConnection();
-            } else if (session.isClosed()) {
+            } else if (session.isClosed() || session.isClosing()) {
                 log.debug("Trying to restart the session with {}", session, deviceInfo.getDeviceId());
                 cleanUp();
                 startSession();
-            } else if (channel.isClosed()) {
+            } else if (channel.isClosed() || channel.isClosing()) {
                 log.debug("Trying to reopen the channel with {}", deviceInfo.getDeviceId());
                 cleanUp();
                 openChannel();
@@ -703,6 +703,23 @@ public class NetconfSessionMinaImpl extends AbstractNetconfSession {
         }
         log.warn("Device {} has error in reply {}", deviceInfo, reply);
         return false;
+    }
+
+    @Override
+    public boolean close() throws NetconfException {
+        try {
+            return super.close();
+        } catch (IOException ioe) {
+            throw new NetconfException(ioe.getMessage());
+        } finally {
+            try {
+                session.close();
+                channel.close();
+                client.close();
+            } catch (IOException ioe) {
+                log.warn("Error closing session {} on {}", sessionID, deviceInfo, ioe);
+            }
+        }
     }
 
     protected void publishEvent(NetconfDeviceOutputEvent event) {
