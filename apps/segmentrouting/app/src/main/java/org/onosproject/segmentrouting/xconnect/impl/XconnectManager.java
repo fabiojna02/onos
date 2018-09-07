@@ -15,6 +15,7 @@
  */
 package org.onosproject.segmentrouting.xconnect.impl;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.apache.felix.scr.annotations.Activate;
@@ -192,6 +193,24 @@ public class XconnectManager implements XconnectService {
         );
     }
 
+    @Override
+    public ImmutableMap<XconnectKey, NextObjective> getNext() {
+        if (xconnectNextObjStore != null) {
+            return ImmutableMap.copyOf(xconnectNextObjStore.asJavaMap());
+        } else {
+            return ImmutableMap.of();
+        }
+    }
+
+    @Override
+    public void removeNextId(int nextId) {
+        xconnectNextObjStore.entrySet().forEach(e -> {
+            if (e.getValue().value().id() == nextId) {
+                xconnectNextObjStore.remove(e.getKey());
+            }
+        });
+    }
+
     private class XconnectMapListener implements MapEventListener<XconnectKey, Set<PortNumber>> {
         @Override
         public void event(MapEvent<XconnectKey, Set<PortNumber>> event) {
@@ -308,9 +327,10 @@ public class XconnectManager implements XconnectService {
                     // To serialize this with kryo
                     (Serializable & Consumer<Objective>) (objective) ->
                             log.debug("XConnect NextObj for {} added", key),
-                    (Serializable & BiConsumer<Objective, ObjectiveError>) (objective, error) ->
-                            log.warn("Failed to add XConnect NextObj for {}: {}", key, error)
-            );
+                    (Serializable & BiConsumer<Objective, ObjectiveError>) (objective, error) -> {
+                        log.warn("Failed to add XConnect NextObj for {}: {}", key, error);
+                        srService.invalidateNextObj(objective.id());
+                    });
             nextObj = nextObjBuilder.add(nextContext);
             flowObjectiveService.next(key.deviceId(), nextObj);
             xconnectNextObjStore.put(key, nextObj);
@@ -415,10 +435,10 @@ public class XconnectManager implements XconnectService {
                 if (nextFuture != null) {
                     nextFuture.complete(error);
                 }
+                srService.invalidateNextObj(objective.id());
             }
         };
-        flowObjectiveService.next(key.deviceId(),
-                (NextObjective) nextObj.copy().remove(context));
+        flowObjectiveService.next(key.deviceId(), nextObj.copy().remove(context));
         xconnectNextObjStore.remove(key);
     }
 

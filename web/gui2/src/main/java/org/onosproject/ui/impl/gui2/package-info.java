@@ -14,21 +14,7 @@
  * limitations under the License.
  */
 
-package org.onosproject.ui.impl;
-
 /**
- * A dummy class to satisfy Bazel build.
- * Since all classes implementing the REST interface to the GUI framework for GUI2
- * are in the /web/gui project, no classes are needed here.
+ * Set of resources providing data for the ONOS GUI2.
  */
-public final class DummyClass {
-    private static final String DUMMY_ATTRIBUTE = "test";
-
-    private DummyClass() {
-        //Hidden
-    }
-
-    static String getDummyAttribute() {
-        return DUMMY_ATTRIBUTE;
-    }
-}
+package org.onosproject.ui.impl.gui2;

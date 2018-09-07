@@ -14,7 +14,16 @@
  * limitations under the License.
  */
 
+package org.onosproject.net.pi.service;
+
+import com.google.common.annotations.Beta;
+import org.onosproject.event.EventListener;
+
 /**
- * Set of resources providing data for the ONOS GUI.
+ * Listener of pipeline status change events produced by {@link
+ * PiPipeconfWatchdogService}.
  */
-package org.onosproject.ui.impl;
+@Beta
+public interface PiPipeconfWatchdogListener
+        extends EventListener<PiPipeconfWatchdogEvent> {
+}

@@ -31,6 +31,7 @@ import org.onosproject.net.flow.instructions.L2ModificationInstruction;
 import org.onosproject.net.flow.instructions.L2ModificationInstruction.ModEtherInstruction;
 import org.onosproject.net.flow.instructions.L2ModificationInstruction.ModMplsLabelInstruction;
 import org.onosproject.net.flow.instructions.L2ModificationInstruction.ModVlanIdInstruction;
+import org.onosproject.net.flow.instructions.L3ModificationInstruction;
 import org.onosproject.net.pi.model.PiActionId;
 import org.onosproject.net.pi.model.PiPipelineInterpreter.PiInterpreterException;
 import org.onosproject.net.pi.model.PiTableId;
@@ -57,6 +58,8 @@ final class FabricTreatmentInterpreter {
             .withId(FabricConstants.FABRIC_INGRESS_FILTERING_NOP_INGRESS_PORT_VLAN).build();
     private static final PiAction NOP_ACL = PiAction.builder()
             .withId(FabricConstants.FABRIC_INGRESS_FORWARDING_NOP_ACL).build();
+    private static final PiAction NOP_ROUTING_V4 = PiAction.builder()
+            .withId(FabricConstants.FABRIC_INGRESS_FORWARDING_NOP_ROUTING_V4).build();
 
     private static final PiAction POP_VLAN = PiAction.builder()
             .withId(FabricConstants.FABRIC_EGRESS_EGRESS_NEXT_POP_VLAN)
@@ -142,9 +145,12 @@ final class FabricTreatmentInterpreter {
     public static PiAction mapForwardingTreatment(TrafficTreatment treatment, PiTableId tableId)
             throws PiInterpreterException {
         // Empty treatment, generate table entry with no action
-        if (treatment.equals(DefaultTrafficTreatment.emptyTreatment())) {
+        if (treatment.equals(DefaultTrafficTreatment.emptyTreatment()) ||
+                treatment.allInstructions().isEmpty()) {
             if (tableId.equals(FabricConstants.FABRIC_INGRESS_FORWARDING_ACL)) {
                 return NOP_ACL;
+            } else if (tableId.equals(FabricConstants.FABRIC_INGRESS_FORWARDING_ROUTING_V4)) {
+                return NOP_ROUTING_V4;
             } else {
                 return NOP;
             }
@@ -219,9 +225,24 @@ final class FabricTreatmentInterpreter {
                         case VLAN_POP:
                             // VLAN_POP will be handled by mapEgressNextTreatment()
                             break;
+                        case MPLS_PUSH:
+                            // Ignore. fabric.p4 only needs MPLS_LABEL to push a label
+                            break;
                         default:
                             log.warn("Unsupported l2 instruction sub type {} [table={}, {}]",
                                      l2Inst.subtype(), tableId, treatment);
+                            break;
+                    }
+                    break;
+                case L3MODIFICATION:
+                    L3ModificationInstruction l3Inst = (L3ModificationInstruction) inst;
+                    switch (l3Inst.subtype()) {
+                        case TTL_OUT:
+                            // Ignore TTL_OUT
+                            break;
+                        default:
+                            log.warn("Unsupported l3 instruction sub type {} [table={}, {}]",
+                                    l3Inst.subtype(), tableId, treatment);
                             break;
                     }
                     break;

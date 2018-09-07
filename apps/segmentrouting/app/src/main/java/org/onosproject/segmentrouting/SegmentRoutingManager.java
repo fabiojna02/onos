@@ -75,6 +75,7 @@ import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
 import org.onosproject.net.flowobjective.FlowObjectiveService;
+import org.onosproject.net.flowobjective.NextObjective;
 import org.onosproject.net.host.HostEvent;
 import org.onosproject.net.host.HostListener;
 import org.onosproject.net.host.HostProbingService;
@@ -474,9 +475,9 @@ public class SegmentRoutingManager implements SegmentRoutingService {
                                       "allowDuplicateIps", "false");
         // For P4 switches
         compCfgService.preSetProperty("org.onosproject.net.flow.impl.FlowRuleManager",
-                                      "fallbackFlowPollFrequency", "5");
+                                      "fallbackFlowPollFrequency", "4");
         compCfgService.preSetProperty("org.onosproject.net.group.impl.GroupManager",
-                                      "fallbackGroupPollFrequency", "5");
+                                      "fallbackGroupPollFrequency", "3");
         compCfgService.registerProperties(getClass());
         modified(context);
 
@@ -856,11 +857,81 @@ public class SegmentRoutingManager implements SegmentRoutingService {
     }
 
     @Override
-    public ImmutableMap<DestinationSetNextObjectiveStoreKey, NextNeighbors> getDestinationSet() {
+    public ImmutableMap<DestinationSetNextObjectiveStoreKey, NextNeighbors> getDstNextObjStore() {
         if (dsNextObjStore != null) {
             return ImmutableMap.copyOf(dsNextObjStore.entrySet());
         } else {
             return ImmutableMap.of();
+        }
+    }
+
+    @Override
+    public ImmutableMap<VlanNextObjectiveStoreKey, Integer> getVlanNextObjStore() {
+        if (vlanNextObjStore != null) {
+            return ImmutableMap.copyOf(vlanNextObjStore.entrySet());
+        } else {
+            return ImmutableMap.of();
+        }
+    }
+
+    @Override
+    public ImmutableMap<PortNextObjectiveStoreKey, Integer> getPortNextObjStore() {
+        if (portNextObjStore != null) {
+            return ImmutableMap.copyOf(portNextObjStore.entrySet());
+        } else {
+            return ImmutableMap.of();
+        }
+    }
+
+    @Override
+    public ImmutableMap<String, NextObjective> getPwInitNext() {
+        if (l2TunnelHandler != null) {
+            return l2TunnelHandler.getInitNext();
+        } else {
+            return ImmutableMap.of();
+        }
+    }
+
+    @Override
+    public ImmutableMap<String, NextObjective> getPwTermNext() {
+        if (l2TunnelHandler != null) {
+            return l2TunnelHandler.getTermNext();
+        } else {
+            return ImmutableMap.of();
+        }
+    }
+
+    @Override
+    public void invalidateNextObj(int nextId) {
+        if (dsNextObjStore != null) {
+            dsNextObjStore.entrySet().forEach(e -> {
+                if (e.getValue().nextId() == nextId) {
+                    dsNextObjStore.remove(e.getKey());
+                }
+            });
+        }
+        if (vlanNextObjStore != null) {
+            vlanNextObjStore.entrySet().forEach(e -> {
+                if (e.getValue() == nextId) {
+                    vlanNextObjStore.remove(e.getKey());
+                }
+            });
+        }
+        if (portNextObjStore != null) {
+            portNextObjStore.entrySet().forEach(e -> {
+                if (e.getValue() == nextId) {
+                    portNextObjStore.remove(e.getKey());
+                }
+            });
+        }
+        if (mcastHandler != null) {
+            mcastHandler.removeNextId(nextId);
+        }
+        if (l2TunnelHandler != null) {
+            l2TunnelHandler.removeNextId(nextId);
+        }
+        if (xconnectService != null) {
+            xconnectService.removeNextId(nextId);
         }
     }
 
@@ -884,7 +955,7 @@ public class SegmentRoutingManager implements SegmentRoutingService {
 
     @Override
     public Map<McastStoreKey, Integer> getMcastNextIds(IpAddress mcastIp) {
-        return mcastHandler.getMcastNextIds(mcastIp);
+        return mcastHandler.getNextIds(mcastIp);
     }
 
     @Override
@@ -1236,6 +1307,13 @@ public class SegmentRoutingManager implements SegmentRoutingService {
                                  event.type(), ((Device) event.subject()).id());
                         processDeviceAdded((Device) event.subject());
                     } else {
+                        if (event.type() == DeviceEvent.Type.DEVICE_ADDED) {
+                            // Note: For p4 devices, the device will be added but unavailable at the beginning.
+                            //       The device will later on being marked as available once the pipeline is pushed
+                            //       to the device.
+                            log.info("** DEVICE ADDED but unavailable. Ignore");
+                            return;
+                        }
                         log.info(" ** DEVICE DOWN Processing device event {}"
                                 + " for unavailable device {}",
                                  event.type(), ((Device) event.subject()).id());
