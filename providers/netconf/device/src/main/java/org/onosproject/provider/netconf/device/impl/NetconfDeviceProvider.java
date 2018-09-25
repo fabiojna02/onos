@@ -18,6 +18,7 @@ package org.onosproject.provider.netconf.device.impl;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Striped;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
@@ -89,6 +90,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.function.Supplier;
 
 import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static org.onlab.util.Tools.groupedThreads;
@@ -178,6 +181,7 @@ public class NetconfDeviceProvider extends AbstractProvider
     protected final NetworkConfigListener cfgListener = new InternalNetworkConfigListener();
     private ApplicationId appId;
     private boolean active;
+    private final Striped<Lock> deviceLocks = Striped.lock(30);
 
 
     @Activate
@@ -272,7 +276,8 @@ public class NetconfDeviceProvider extends AbstractProvider
         if (active) {
             switch (newRole) {
                 case MASTER:
-                    initiateConnection(deviceId, newRole);
+                    withDeviceLock(
+                            () -> initiateConnection(deviceId, newRole), deviceId).run();
                     log.debug("Accepting mastership role change to {} for device {}", newRole, deviceId);
                     break;
                 case STANDBY:
@@ -455,7 +460,7 @@ public class NetconfDeviceProvider extends AbstractProvider
         if (!isReachable && deviceService.isAvailable(deviceId)) {
             providerService.deviceDisconnected(deviceId);
             return;
-        } else if (newlyConnected && mastershipService.isLocalMaster(deviceId)) {
+        } else if (newlyConnected &&  mastershipService.isLocalMaster(deviceId)) {
             updateDeviceDescription(deviceId, deviceDescription, device);
         }
         if (isReachable && deviceService.isAvailable(deviceId) &&
@@ -482,16 +487,11 @@ public class NetconfDeviceProvider extends AbstractProvider
                             deviceId, new DefaultDeviceDescription(
                                     updatedDeviceDescription, true,
                                     updatedDeviceDescription.annotations()));
-                } else if (updatedDeviceDescription == null && deviceDescription != null) {
+                } else if (updatedDeviceDescription == null) {
                     providerService.deviceConnected(
                             deviceId, new DefaultDeviceDescription(
                                     deviceDescription, true,
                                     deviceDescription.annotations()));
-                } else {
-                    providerService.deviceConnected(deviceId, new DefaultDeviceDescription(deviceId.uri(),
-                            device.type(), device.manufacturer(), device.hwVersion(), device.swVersion(),
-                            device.serialNumber(), device.chassisId(), true,
-                            (SparseAnnotations) device.annotations()));
                 }
             }
         } else {
@@ -581,12 +581,10 @@ public class NetconfDeviceProvider extends AbstractProvider
                 NetconfDevice device = controller.connectDevice(deviceId);
                 if (device != null) {
                     providerService.receivedRoleReply(deviceId, newRole, MastershipRole.MASTER);
-                    try {
-                        checkAndUpdateDevice(deviceId, null, true);
-                    } catch (Exception e) {
-                        log.error("Unhandled exception checking {}", deviceId, e);
-                    }
+                } else {
+                    providerService.receivedRoleReply(deviceId, newRole, MastershipRole.NONE);
                 }
+
             }
         } catch (Exception e) {
             if (deviceService.getDevice(deviceId) != null) {
@@ -631,6 +629,24 @@ public class NetconfDeviceProvider extends AbstractProvider
         }
     }
 
+    private <U> U withDeviceLock(Supplier<U> task, DeviceId deviceId) {
+        final Lock lock = deviceLocks.get(deviceId);
+        lock.lock();
+        try {
+            return task.get();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private Runnable withDeviceLock(Runnable task, DeviceId deviceId) {
+        // Wrapper of withDeviceLock(Supplier, ...) for void tasks.
+        return () -> withDeviceLock(() -> {
+            task.run();
+            return null;
+        }, deviceId);
+    }
+
     /**
      * Listener for configuration events.
      */
@@ -662,6 +678,14 @@ public class NetconfDeviceProvider extends AbstractProvider
     private class InternalDeviceListener implements DeviceListener {
         @Override
         public void event(DeviceEvent event) {
+            DeviceId deviceId = event.subject().id();
+            if (event.type() == DeviceEvent.Type.DEVICE_ADDED && !deviceService.isAvailable(event.subject().id())) {
+                try {
+                    checkAndUpdateDevice(deviceId, null, true);
+                } catch (Exception e) {
+                    log.error("Unhandled exception checking {}", deviceId, e);
+                }
+            }
             if (deviceService.isAvailable(event.subject().id())) {
                 executor.execute(() -> discoverPorts(event.subject().id()));
             }

@@ -263,11 +263,8 @@ public class NetconfDeviceProviderTest {
         assertNotNull(providerService);
         assertTrue("Event should be relevant", provider.cfgListener.isRelevant(deviceAddedEvent));
         available = true;
-
         assertFalse("Device should not be reachable" + NETCONF_DEVICE_ID_STRING,
                 provider.isReachable(DeviceId.deviceId(NETCONF_DEVICE_ID_STRING)));
-        provider.cfgListener.event(deviceAddedEvent);
-
         devices.clear();
     }
 
