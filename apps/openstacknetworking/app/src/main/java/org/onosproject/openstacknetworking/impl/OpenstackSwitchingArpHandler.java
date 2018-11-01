@@ -75,15 +75,15 @@ import java.util.Set;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.onosproject.openstacknetworking.api.Constants.ARP_BROADCAST_MODE;
 import static org.onosproject.openstacknetworking.api.Constants.ARP_PROXY_MODE;
+import static org.onosproject.openstacknetworking.api.Constants.ARP_TABLE;
 import static org.onosproject.openstacknetworking.api.Constants.DEFAULT_ARP_MODE_STR;
 import static org.onosproject.openstacknetworking.api.Constants.DEFAULT_GATEWAY_MAC_STR;
-import static org.onosproject.openstacknetworking.api.Constants.DHCP_ARP_TABLE;
 import static org.onosproject.openstacknetworking.api.Constants.OPENSTACK_NETWORKING_APP_ID;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_CONTROL_RULE;
+import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_FLOOD_RULE;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_GATEWAY_RULE;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_REPLY_RULE;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_REQUEST_RULE;
-import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_SUBNET_RULE;
 import static org.onosproject.openstacknetworking.api.InstancePort.State.ACTIVE;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.getPropertyValue;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.swapStaleLocation;
@@ -220,7 +220,7 @@ public final class OpenstackSwitchingArpHandler {
 
         IpAddress targetIp = Ip4Address.valueOf(arpPacket.getTargetProtocolAddress());
 
-        MacAddress replyMac = gatewayIp(targetIp) ? MacAddress.valueOf(gatewayMac) :
+        MacAddress replyMac = isGatewayIp(targetIp) ? MacAddress.valueOf(gatewayMac) :
                 getMacFromHostOpenstack(targetIp, srcInstPort.networkId());
         if (replyMac == MacAddress.NONE) {
             log.trace("Failed to find MAC address for {}", targetIp);
@@ -242,8 +242,16 @@ public final class OpenstackSwitchingArpHandler {
                 ByteBuffer.wrap(ethReply.serialize())));
     }
 
-    private boolean gatewayIp(IpAddress targetIp) {
+    /**
+     * Denotes whether the given target IP is gateway IP.
+     *
+     * @param targetIp target IP address
+     * @return true if the given targetIP is gateway IP, false otherwise.
+     */
+    private boolean isGatewayIp(IpAddress targetIp) {
         return osNetworkService.subnets().stream()
+                .filter(Objects::nonNull)
+                .filter(subnet -> subnet.getGateway() != null)
                 .anyMatch(subnet -> subnet.getGateway().equals(targetIp.toString()));
     }
 
@@ -316,7 +324,7 @@ public final class OpenstackSwitchingArpHandler {
                                 selector,
                                 treatment,
                                 PRIORITY_ARP_GATEWAY_RULE,
-                                DHCP_ARP_TABLE,
+                                ARP_TABLE,
                                 install
                         )
                 );
@@ -327,7 +335,7 @@ public final class OpenstackSwitchingArpHandler {
                         selector,
                         treatment,
                         PRIORITY_ARP_GATEWAY_RULE,
-                        DHCP_ARP_TABLE,
+                        ARP_TABLE,
                         install
                 );
             }
@@ -388,10 +396,13 @@ public final class OpenstackSwitchingArpHandler {
 
         OpenstackNode localNode = osNodeService.node(port.deviceId());
 
+        String segId = osNetworkService.segmentId(port.networkId());
+
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(EthType.EtherType.ARP.ethType().toShort())
                 .matchArpOp(ARP.OP_REQUEST)
                 .matchArpTpa(port.ipAddress().getIp4Address())
+                .matchTunnelId(Long.valueOf(segId))
                 .build();
 
         setRemoteArpTreatmentForVxlan(selector, port, localNode, install);
@@ -442,7 +453,7 @@ public final class OpenstackSwitchingArpHandler {
                 selector,
                 treatment,
                 PRIORITY_ARP_REPLY_RULE,
-                DHCP_ARP_TABLE,
+                ARP_TABLE,
                 install
         );
 
@@ -471,7 +482,7 @@ public final class OpenstackSwitchingArpHandler {
                         selector,
                         treatmentToRemote,
                         PRIORITY_ARP_REQUEST_RULE,
-                        DHCP_ARP_TABLE,
+                        ARP_TABLE,
                         install
                 );
             }
@@ -494,7 +505,7 @@ public final class OpenstackSwitchingArpHandler {
                         selector,
                         treatmentToRemote,
                         PRIORITY_ARP_REQUEST_RULE,
-                        DHCP_ARP_TABLE,
+                        ARP_TABLE,
                         install);
             }
         }
@@ -667,7 +678,7 @@ public final class OpenstackSwitchingArpHandler {
                     selector,
                     treatment,
                     PRIORITY_ARP_CONTROL_RULE,
-                    DHCP_ARP_TABLE,
+                    ARP_TABLE,
                     install
             );
         }
@@ -687,8 +698,8 @@ public final class OpenstackSwitchingArpHandler {
                     osNode.intgBridge(),
                     selector,
                     treatment,
-                    PRIORITY_ARP_SUBNET_RULE,
-                    DHCP_ARP_TABLE,
+                    PRIORITY_ARP_FLOOD_RULE,
+                    ARP_TABLE,
                     install
             );
         }
