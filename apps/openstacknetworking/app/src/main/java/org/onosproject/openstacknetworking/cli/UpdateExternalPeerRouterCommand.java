@@ -16,8 +16,9 @@
 package org.onosproject.openstacknetworking.cli;
 
 import com.google.common.collect.Lists;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
@@ -31,6 +32,7 @@ import java.util.List;
 /**
  * Updates external peer router.
  */
+@Service
 @Command(scope = "onos", name = "openstack-update-peer-router",
         description = "Update external peer router")
 public class UpdateExternalPeerRouterCommand extends AbstractShellCommand {
@@ -52,7 +54,7 @@ public class UpdateExternalPeerRouterCommand extends AbstractShellCommand {
     private static final String NONE = "None";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackNetworkAdminService service = AbstractShellCommand.get(OpenstackNetworkAdminService.class);
 
         IpAddress externalPeerIpAddress = IpAddress.valueOf(

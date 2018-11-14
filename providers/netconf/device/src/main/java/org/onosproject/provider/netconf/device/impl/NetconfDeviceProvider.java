@@ -19,13 +19,6 @@ package org.onosproject.provider.netconf.device.impl;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Striped;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.ChassisId;
 import org.onlab.util.Tools;
 import org.onosproject.cfg.ComponentConfigService;
@@ -69,6 +62,12 @@ import org.onosproject.netconf.NetconfDeviceListener;
 import org.onosproject.netconf.NetconfException;
 import org.onosproject.netconf.config.NetconfDeviceConfig;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -95,39 +94,44 @@ import java.util.function.Supplier;
 
 import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.provider.netconf.device.impl.OsgiPropertyConstants.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Provider which uses an NETCONF controller to detect device.
  */
-@Component(immediate = true)
+@Component(immediate = true,
+        property = {
+                POLL_FREQUENCY_SECONDS_DEFAULT + ":Integer=" + POLL_FREQUENCY_SECONDS_DEFAULT,
+                MAX_RETRIES + ":Integer=" + MAX_RETRIES_DEFAULT,
+        })
 public class NetconfDeviceProvider extends AbstractProvider
         implements DeviceProvider {
 
     private final Logger log = getLogger(getClass());
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceProviderRegistry providerRegistry;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetconfController controller;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetworkConfigRegistry cfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceKeyAdminService deviceKeyAdminService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected MastershipService mastershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService componentConfigService;
 
 
@@ -141,17 +145,11 @@ public class NetconfDeviceProvider extends AbstractProvider
     private static final String PORT = "port";
     private static final int CORE_POOL_SIZE = 10;
 
-    private static final int DEFAULT_POLL_FREQUENCY_SECONDS = 30;
-    @Property(name = "pollFrequency", intValue = DEFAULT_POLL_FREQUENCY_SECONDS,
-            label = "Configure poll frequency for port status and statistics; " +
-                    "default is 30 sec")
-    private int pollFrequency = DEFAULT_POLL_FREQUENCY_SECONDS;
+    /** Configure poll frequency for port status and statistics; default is 30 sec. */
+    private int pollFrequency = POLL_FREQUENCY_SECONDS_DEFAULT;
 
-    private static final int DEFAULT_MAX_RETRIES = 5;
-    @Property(name = "maxRetries", intValue = DEFAULT_MAX_RETRIES,
-            label = "Configure maximum allowed number of retries for obtaining list of ports; " +
-                    "default is 5 times")
-    private int maxRetries = DEFAULT_MAX_RETRIES;
+    /** Configure maximum allowed number of retries for obtaining list of ports; default is 5 times. */
+    private int maxRetries = MAX_RETRIES_DEFAULT;
 
     protected ExecutorService executor =
             Executors.newFixedThreadPool(5, groupedThreads("onos/netconfdeviceprovider",
@@ -225,12 +223,11 @@ public class NetconfDeviceProvider extends AbstractProvider
     public void modified(ComponentContext context) {
         if (context != null) {
             Dictionary<?, ?> properties = context.getProperties();
-            pollFrequency = Tools.getIntegerProperty(properties, "pollFrequency",
-                                                     DEFAULT_POLL_FREQUENCY_SECONDS);
+            pollFrequency = Tools.getIntegerProperty(properties, POLL_FREQUENCY_SECONDS,
+                                                     POLL_FREQUENCY_SECONDS_DEFAULT);
             log.info("Configured. Poll frequency is configured to {} seconds", pollFrequency);
 
-            maxRetries = Tools.getIntegerProperty(properties, "maxRetries",
-                    DEFAULT_MAX_RETRIES);
+            maxRetries = Tools.getIntegerProperty(properties, MAX_RETRIES, MAX_RETRIES_DEFAULT);
             log.info("Configured. Number of retries is configured to {} times", maxRetries);
         }
         if (scheduledTask != null) {
@@ -466,8 +463,9 @@ public class NetconfDeviceProvider extends AbstractProvider
         if (isReachable && deviceService.isAvailable(deviceId) &&
                 mastershipService.isLocalMaster(deviceId)) {
             //if ports are not discovered, retry the discovery
+            AtomicInteger count = retriedPortDiscoveryMap.get(deviceId);
             if (deviceService.getPorts(deviceId).isEmpty() &&
-                    retriedPortDiscoveryMap.get(deviceId).getAndIncrement() < maxRetries) {
+                    count != null && count.getAndIncrement() < maxRetries) {
                 discoverPorts(deviceId);
             }
             updatePortStatistics(device);

@@ -16,8 +16,10 @@
 package org.onosproject.cli.app;
 
 import com.google.common.io.ByteStreams;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.app.ApplicationAdminService;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.core.Application;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 /**
  * Manages application inventory.
  */
+@Service
 @Command(scope = "onos", name = "app",
         description = "Manages application inventory")
 public class ApplicationCommand extends AbstractShellCommand {
@@ -43,15 +46,17 @@ public class ApplicationCommand extends AbstractShellCommand {
 
     @Argument(index = 0, name = "command",
             description = "Command name (install|activate|deactivate|uninstall|download)",
-            required = true, multiValued = false)
+            required = true)
+    @Completion(ApplicationCommandCompleter.class)
     String command = null;
 
     @Argument(index = 1, name = "names", description = "Application name(s) or URL(s)",
             required = true, multiValued = true)
+    @Completion(ApplicationNameCompleter.class)
     String[] names = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         ApplicationAdminService service = get(ApplicationAdminService.class);
         if (command.equals(INSTALL)) {
             for (String name : names) {

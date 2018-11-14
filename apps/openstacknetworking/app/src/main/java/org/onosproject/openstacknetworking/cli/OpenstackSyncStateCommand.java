@@ -16,7 +16,8 @@
 package org.onosproject.openstacknetworking.cli;
 
 import com.google.common.base.Strings;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkAdminService;
 import org.onosproject.openstacknetworking.api.OpenstackRouterAdminService;
@@ -32,7 +33,9 @@ import org.openstack4j.model.network.Port;
 import org.openstack4j.model.network.Router;
 import org.openstack4j.model.network.Subnet;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -43,6 +46,7 @@ import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.CONTROLLE
 /**
  * Synchronizes OpenStack network states.
  */
+@Service
 @Command(scope = "onos", name = "openstack-sync-states",
         description = "Synchronizes all OpenStack network states")
 public class OpenstackSyncStateCommand extends AbstractShellCommand {
@@ -57,12 +61,18 @@ public class OpenstackSyncStateCommand extends AbstractShellCommand {
     private static final String DEVICE_OWNER_GW = "network:router_gateway";
     private static final String DEVICE_OWNER_IFACE = "network:router_interface";
 
+    private static final String HTTP_HEADER_ACCEPT = "accept";
+    private static final String HTTP_HEADER_VALUE_JSON = "application/json";
+
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackSecurityGroupAdminService osSgAdminService = get(OpenstackSecurityGroupAdminService.class);
         OpenstackNetworkAdminService osNetAdminService = get(OpenstackNetworkAdminService.class);
         OpenstackRouterAdminService osRouterAdminService = get(OpenstackRouterAdminService.class);
         OpenstackNodeService osNodeService = get(OpenstackNodeService.class);
+
+        Map<String, String> headerMap = new HashMap();
+        headerMap.put(HTTP_HEADER_ACCEPT, HTTP_HEADER_VALUE_JSON);
 
         Optional<OpenstackNode> node = osNodeService.nodes(CONTROLLER).stream().findFirst();
         if (!node.isPresent()) {
@@ -79,7 +89,7 @@ public class OpenstackSyncStateCommand extends AbstractShellCommand {
 
         print("Synchronizing OpenStack security groups");
         print(SECURITY_GROUP_FORMAT, "ID", "Name");
-        osClient.networking().securitygroup().list().forEach(osSg -> {
+        osClient.headers(headerMap).networking().securitygroup().list().forEach(osSg -> {
             if (osSgAdminService.securityGroup(osSg.getId()) != null) {
                 osSgAdminService.updateSecurityGroup(osSg);
             } else {
@@ -88,9 +98,10 @@ public class OpenstackSyncStateCommand extends AbstractShellCommand {
             print(SECURITY_GROUP_FORMAT, osSg.getId(), osSg.getName());
         });
 
+
         print("\nSynchronizing OpenStack networks");
         print(NETWORK_FORMAT, "ID", "Name", "VNI", "Subnets");
-        osClient.networking().network().list().forEach(osNet -> {
+        osClient.headers(headerMap).networking().network().list().forEach(osNet -> {
             if (osNetAdminService.network(osNet.getId()) != null) {
                 osNetAdminService.updateNetwork(osNet);
             } else {
@@ -99,9 +110,10 @@ public class OpenstackSyncStateCommand extends AbstractShellCommand {
             printNetwork(osNet);
         });
 
+
         print("\nSynchronizing OpenStack subnets");
         print(SUBNET_FORMAT, "ID", "Network", "CIDR");
-        osClient.networking().subnet().list().forEach(osSubnet -> {
+        osClient.headers(headerMap).networking().subnet().list().forEach(osSubnet -> {
             if (osNetAdminService.subnet(osSubnet.getId()) != null) {
                 osNetAdminService.updateSubnet(osSubnet);
             } else {
@@ -112,7 +124,7 @@ public class OpenstackSyncStateCommand extends AbstractShellCommand {
 
         print("\nSynchronizing OpenStack ports");
         print(PORT_FORMAT, "ID", "Network", "MAC", "Fixed IPs");
-        osClient.networking().port().list().forEach(osPort -> {
+        osClient.headers(headerMap).networking().port().list().forEach(osPort -> {
             if (osNetAdminService.port(osPort.getId()) != null) {
                 osNetAdminService.updatePort(osPort);
             } else {
@@ -123,7 +135,7 @@ public class OpenstackSyncStateCommand extends AbstractShellCommand {
 
         print("\nSynchronizing OpenStack routers");
         print(ROUTER_FORMAT, "ID", "Name", "External", "Internal");
-        osClient.networking().router().list().forEach(osRouter -> {
+        osClient.headers(headerMap).networking().router().list().forEach(osRouter -> {
             if (osRouterAdminService.router(osRouter.getId()) != null) {
                 osRouterAdminService.updateRouter(osRouter);
             } else {
@@ -141,7 +153,7 @@ public class OpenstackSyncStateCommand extends AbstractShellCommand {
 
         print("\nSynchronizing OpenStack floating IPs");
         print(FLOATING_IP_FORMAT, "ID", "Floating IP", "Fixed IP");
-        osClient.networking().floatingip().list().forEach(osFloating -> {
+        osClient.headers(headerMap).networking().floatingip().list().forEach(osFloating -> {
             if (osRouterAdminService.floatingIp(osFloating.getId()) != null) {
                 osRouterAdminService.updateFloatingIp(osFloating);
             } else {

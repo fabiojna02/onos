@@ -15,8 +15,9 @@
  */
 package org.onosproject.workflow.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.workflow.api.Workflow;
 import org.onosproject.workflow.api.WorkflowStore;
@@ -24,17 +25,18 @@ import org.onosproject.workflow.api.WorkflowStore;
 import java.util.Objects;
 import java.net.URI;
 
+@Service
 @Command(scope = "onos", name = "workflowstore", description = "workflow store cli")
 public class WorkFlowStoreCommand extends AbstractShellCommand {
 
-    @Argument (index = 0, name = "cmd", description = "command(rm)", required = false)
+    @Argument(index = 0, name = "cmd", description = "command(rm)", required = false)
     private String cmd = null;
 
     @Argument (index = 1, name = "id", description = "workflow id(URI)", required = false)
     private String id = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
 
         if (Objects.isNull(cmd)) {
             printAllWorkflow();

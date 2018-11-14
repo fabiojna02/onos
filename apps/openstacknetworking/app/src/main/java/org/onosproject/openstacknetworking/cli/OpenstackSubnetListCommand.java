@@ -18,7 +18,8 @@ package org.onosproject.openstacknetworking.cli;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.common.collect.Lists;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkService;
 import org.openstack4j.model.network.Subnet;
@@ -33,6 +34,7 @@ import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.p
 /**
  * Lists OpenStack subnets.
  */
+@Service
 @Command(scope = "onos", name = "openstack-subnets",
         description = "Lists all OpenStack subnets")
 public class OpenstackSubnetListCommand extends AbstractShellCommand {
@@ -40,7 +42,7 @@ public class OpenstackSubnetListCommand extends AbstractShellCommand {
     private static final String FORMAT = "%-40s%-20s%-20s%-20s%-40s%-20s%-8s";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackNetworkService service = AbstractShellCommand.get(OpenstackNetworkService.class);
         List<Subnet> subnets = Lists.newArrayList(service.subnets());
         subnets.sort(Comparator.comparing(Subnet::getName));

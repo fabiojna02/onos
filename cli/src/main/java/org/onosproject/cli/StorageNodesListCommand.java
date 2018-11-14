@@ -23,7 +23,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cluster.ClusterAdminService;
 import org.onosproject.cluster.Node;
 
@@ -32,13 +33,14 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  * Lists all storage nodes.
  */
+@Service
 @Command(scope = "onos", name = "storage-nodes", description = "Lists all storage nodes")
 public class StorageNodesListCommand extends AbstractShellCommand {
 
     private static final String FMT = "id=%s, address=%s:%s";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         ClusterAdminService service = get(ClusterAdminService.class);
         List<Node> nodes = newArrayList(service.getConsensusNodes());
         Collections.sort(nodes, Comparator.comparing(Node::id));

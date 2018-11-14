@@ -19,9 +19,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.vtnrsc.DefaultRouter;
 import org.onosproject.vtnrsc.Router;
@@ -36,6 +37,7 @@ import com.google.common.collect.Sets;
 /**
  * Supports for create a router.
  */
+@Service
 @Command(scope = "onos", name = "router-create",
         description = "Supports for creating a router")
 public class RouterCreateCommand extends AbstractShellCommand {
@@ -72,7 +74,7 @@ public class RouterCreateCommand extends AbstractShellCommand {
     boolean distributed = false;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         RouterService service = get(RouterService.class);
         try {
             List<String> routes = new ArrayList<String>();

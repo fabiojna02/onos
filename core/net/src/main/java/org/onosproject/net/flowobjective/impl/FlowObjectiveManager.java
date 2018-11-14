@@ -19,14 +19,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.osgi.ServiceDirectory;
 import org.onlab.util.ItemNotFoundException;
@@ -59,6 +51,12 @@ import org.onosproject.net.flowobjective.ObjectiveEvent;
 import org.onosproject.net.flowobjective.ObjectiveEvent.Type;
 import org.onosproject.net.group.GroupService;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,14 +72,21 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.AnnotationKeys.DRIVER;
+import static org.onosproject.net.OsgiPropertyConstants.FOM_NUM_THREADS;
+import static org.onosproject.net.OsgiPropertyConstants.FOM_NUM_THREADS_DEFAULT;
 import static org.onosproject.security.AppGuard.checkPermission;
 import static org.onosproject.security.AppPermission.Type.FLOWRULE_WRITE;
 
 /**
  * Provides implementation of the flow objective programming service.
  */
-@Component(enabled = false)
-@Service
+@Component(
+    enabled = false,
+    service = FlowObjectiveService.class,
+    property = {
+        FOM_NUM_THREADS + ":Integer=" + FOM_NUM_THREADS_DEFAULT
+    }
+)
 public class FlowObjectiveManager implements FlowObjectiveService {
 
     private static final int INSTALL_RETRY_ATTEMPTS = 5;
@@ -93,36 +98,33 @@ public class FlowObjectiveManager implements FlowObjectiveService {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    private static final int DEFAULT_NUM_THREADS = 4;
-    @Property(name = NUM_THREAD,
-             intValue = DEFAULT_NUM_THREADS,
-             label = "Number of worker threads")
-    private int numThreads = DEFAULT_NUM_THREADS;
+    /** Number of worker threads. */
+    private int numThreads = FOM_NUM_THREADS_DEFAULT;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DriverService driverService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterService clusterService;
 
     // Note: The following dependencies are added on behalf of the pipeline
     // driver behaviours to assure these services are available for their
     // initialization.
     @SuppressWarnings("unused")
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected FlowRuleService flowRuleService;
 
     @SuppressWarnings("unused")
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected GroupService groupService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected FlowObjectiveStore flowObjectiveStore;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
     final FlowObjectiveStoreDelegate delegate = new InternalStoreDelegate();

@@ -15,18 +15,6 @@
  */
 package org.onosproject.provider.netcfglinks;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.ONOSLLDP;
 import org.onosproject.cluster.ClusterMetadataService;
@@ -51,9 +39,9 @@ import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.link.DefaultLinkDescription;
-import org.onosproject.net.link.ProbedLinkProvider;
 import org.onosproject.net.link.LinkProviderRegistry;
 import org.onosproject.net.link.LinkProviderService;
+import org.onosproject.net.link.ProbedLinkProvider;
 import org.onosproject.net.packet.InboundPacket;
 import org.onosproject.net.packet.PacketContext;
 import org.onosproject.net.packet.PacketPriority;
@@ -61,57 +49,70 @@ import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.net.packet.PacketService;
 import org.onosproject.net.provider.AbstractProvider;
 import org.onosproject.net.provider.ProviderId;
-import org.onosproject.provider.lldpcommon.LinkDiscoveryContext;
 import org.onosproject.provider.lldpcommon.LinkDiscovery;
+import org.onosproject.provider.lldpcommon.LinkDiscoveryContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.onlab.packet.Ethernet.TYPE_BSN;
 import static org.onlab.packet.Ethernet.TYPE_LLDP;
 import static org.onosproject.net.PortNumber.portNumber;
+import static org.onosproject.provider.netcfglinks.OsgiPropertyConstants.DISCOVERY_DELAY_DEFAULT;
+import static org.onosproject.provider.netcfglinks.OsgiPropertyConstants.PROP_DISCOVERY_DELAY;
+import static org.onosproject.provider.netcfglinks.OsgiPropertyConstants.PROP_PROBE_RATE;
+import static org.onosproject.provider.netcfglinks.OsgiPropertyConstants.PROBE_RATE_DEFAULT;
 
 /**
  * Provider to pre-discover links and devices based on a specified network
  * config.
  */
 
-@Component(immediate = true)
+@Component(immediate = true,
+        property = {
+            PROP_PROBE_RATE + ":Integer=" + PROBE_RATE_DEFAULT,
+            PROP_DISCOVERY_DELAY + ":Integer=" + DISCOVERY_DELAY_DEFAULT,
+        })
 public class NetworkConfigLinksProvider
         extends AbstractProvider
         implements ProbedLinkProvider {
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected LinkProviderRegistry providerRegistry;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected PacketService packetService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected MastershipService masterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetworkConfigRegistry netCfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterMetadataService metadataService;
 
-    private static final String PROP_PROBE_RATE = "probeRate";
-    private static final int DEFAULT_PROBE_RATE = 3000;
-    @Property(name = PROP_PROBE_RATE, intValue = DEFAULT_PROBE_RATE,
-            label = "LLDP and BDDP probe rate specified in millis")
-    private int probeRate = DEFAULT_PROBE_RATE;
+    /** LLDP and BDDP probe rate specified in millis. */
+    private int probeRate = PROBE_RATE_DEFAULT;
 
-    private static final String PROP_DISCOVERY_DELAY = "maxLLDPAge";
-    private static final int DEFAULT_DISCOVERY_DELAY = 1000;
-    @Property(name = PROP_DISCOVERY_DELAY, intValue = DEFAULT_DISCOVERY_DELAY,
-            label = "Number of millis beyond which an LLDP packet will not be accepted")
-    private int maxDiscoveryDelayMs = DEFAULT_DISCOVERY_DELAY;
+    /** Number of millis beyond which an LLDP packet will not be accepted. */
+    private int maxDiscoveryDelayMs = DISCOVERY_DELAY_DEFAULT;
 
     // Device link discovery helpers.
     protected final Map<DeviceId, LinkDiscovery> discoverers = new ConcurrentHashMap<>();
@@ -260,6 +261,10 @@ public class NetworkConfigLinksProvider
 
         @Override
         public void touchLink(LinkKey key) {
+        }
+
+        @Override
+        public void setTtl(LinkKey key, short ttl) {
         }
 
         @Override

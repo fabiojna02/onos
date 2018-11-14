@@ -15,30 +15,37 @@
  */
 package org.onosproject.segmentrouting.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.VlanId;
 import org.onosproject.cli.AbstractShellCommand;
+import org.onosproject.cli.PlaceholderCompleter;
+import org.onosproject.cli.net.DeviceIdCompleter;
 import org.onosproject.net.DeviceId;
 import org.onosproject.segmentrouting.xconnect.api.XconnectService;
 
 /**
  * Deletes Xconnect.
  */
+@Service
 @Command(scope = "onos", name = "sr-xconnect-remove", description = "Remove Xconnect")
 public class XconnectRemoveCommand extends AbstractShellCommand {
     @Argument(index = 0, name = "deviceId",
             description = "Device ID",
             required = true, multiValued = false)
+    @Completion(DeviceIdCompleter.class)
     private String deviceIdStr;
 
     @Argument(index = 1, name = "vlanId",
             description = "VLAN ID",
             required = true, multiValued = false)
+    @Completion(PlaceholderCompleter.class)
     private String vlanIdStr;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         DeviceId deviceId = DeviceId.deviceId(deviceIdStr);
         VlanId vlanId = VlanId.vlanId(vlanIdStr);
 

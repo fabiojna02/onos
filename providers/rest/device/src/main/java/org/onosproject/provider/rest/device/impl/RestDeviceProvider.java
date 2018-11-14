@@ -18,13 +18,6 @@ package org.onosproject.provider.rest.device.impl;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.ChassisId;
 import org.onlab.util.SharedExecutors;
 import org.onlab.util.SharedScheduledExecutorService;
@@ -68,6 +61,12 @@ import org.onosproject.protocol.rest.DefaultRestSBDevice;
 import org.onosproject.protocol.rest.RestSBController;
 import org.onosproject.protocol.rest.RestSBDevice;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import javax.ws.rs.ProcessingException;
@@ -93,12 +92,17 @@ import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.config.NetworkConfigEvent.Type.CONFIG_ADDED;
 import static org.onosproject.net.config.NetworkConfigEvent.Type.CONFIG_REMOVED;
 import static org.onosproject.net.config.NetworkConfigEvent.Type.CONFIG_UPDATED;
+import static org.onosproject.provider.rest.device.impl.OsgiPropertyConstants.POLL_FREQUENCY;
+import static org.onosproject.provider.rest.device.impl.OsgiPropertyConstants.POLL_FREQUENCY_DEFAULT;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Provider for devices that use REST as means of configuration communication.
  */
-@Component(immediate = true)
+@Component(immediate = true, service = DeviceProvider.class,
+        property = {
+                POLL_FREQUENCY + ":Integer=" + POLL_FREQUENCY_DEFAULT,
+        })
 public class RestDeviceProvider extends AbstractProvider
         implements DeviceProvider {
     private static final String APP_NAME = "org.onosproject.restsb";
@@ -107,38 +111,34 @@ public class RestDeviceProvider extends AbstractProvider
     private static final String IPADDRESS = "ipaddress";
     private static final String ISNOTNULL = "Rest device is not null";
     private static final String UNKNOWN = "unknown";
-    private static final String POLL_FREQUENCY = "pollFrequency";
     private static final int REST_TIMEOUT_SEC = 5;
     private static final int EXECUTOR_THREAD_POOL_SIZE = 8;
     private static final int DEVICE_POLL_SEC = 30;
     private final Logger log = getLogger(getClass());
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceProviderRegistry providerRegistry;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected RestSBController controller;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetworkConfigRegistry netCfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService compCfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DriverService driverService;
 
-    private static final int DEFAULT_POLL_FREQUENCY_SECONDS = 30;
-    @Property(name = POLL_FREQUENCY, intValue = DEFAULT_POLL_FREQUENCY_SECONDS,
-            label = "Configure poll frequency for port status and statistics; " +
-                    "default is 30 seconds")
-    private int pollFrequency = DEFAULT_POLL_FREQUENCY_SECONDS;
+    /** Configure poll frequency for port status and statistics; default is 30 seconds. */
+    private int pollFrequency = POLL_FREQUENCY_DEFAULT;
 
     private DeviceProviderService providerService;
     private ApplicationId appId;
@@ -188,7 +188,7 @@ public class RestDeviceProvider extends AbstractProvider
         if (context != null) {
             Dictionary<?, ?> properties = context.getProperties();
             pollFrequency = Tools.getIntegerProperty(properties, POLL_FREQUENCY,
-                                                     DEFAULT_POLL_FREQUENCY_SECONDS);
+                                                     POLL_FREQUENCY_DEFAULT);
             log.info("Configured. Poll frequency is configured to {} seconds", pollFrequency);
         }
 
@@ -268,11 +268,11 @@ public class RestDeviceProvider extends AbstractProvider
 
     private DeviceDescription getDesc(RestSBDevice restSBDev) {
         DeviceId deviceId = restSBDev.deviceId();
-        if (restSBDev.isProxy()) {
-            Driver driver = driverService.getDriver(restSBDev.manufacturer().get(),
-                    restSBDev.hwVersion().get(),
-                    restSBDev.swVersion().get());
+        Driver driver = driverService.getDriver(restSBDev.manufacturer().get(),
+                restSBDev.hwVersion().get(),
+                restSBDev.swVersion().get());
 
+        if (restSBDev.isProxy()) {
             if (driver != null && driver.hasBehaviour(DevicesDiscovery.class)) {
 
                 //Creates the driver to communicate with the server
@@ -283,6 +283,10 @@ public class RestDeviceProvider extends AbstractProvider
                 log.warn("Driver not found for {}", restSBDev);
                 return null;
             }
+        } else if (driver != null && driver.hasBehaviour(DeviceDescriptionDiscovery.class)) {
+            DriverHandler h = driverService.createHandler(deviceId);
+            DeviceDescriptionDiscovery deviceDiscovery = h.behaviour(DeviceDescriptionDiscovery.class);
+            return deviceDiscovery.discoverDeviceDetails();
         }
         ChassisId cid = new ChassisId();
         String ipAddress = restSBDev.ip().toString();

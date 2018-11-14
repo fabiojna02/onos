@@ -16,18 +16,17 @@
 package org.onosproject.openstackvtap.gui;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Service;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onosproject.ui.UiExtensionService;
 import org.onosproject.ui.UiMessageHandlerFactory;
 import org.onosproject.ui.UiTopoOverlayFactory;
 import org.onosproject.ui.UiView;
 import org.onosproject.ui.UiViewHidden;
 import org.onosproject.ui.UiExtension;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +35,7 @@ import java.util.List;
 /**
  * Mechanism to stream data to the GUI.
  */
-@Component(immediate = true, enabled = true)
-@Service(value = OpenstackVtapUI.class)
+@Component(immediate = true, service = {OpenstackVtapUI.class})
 public class OpenstackVtapUI {
     private static final String OPENSTACK_VTAP_ID = "openstackvtap";
     private static final String RESOURCE_PATH = "gui";
@@ -45,7 +43,7 @@ public class OpenstackVtapUI {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected UiExtensionService uiExtensionService;
 
     // Factory for UI message handlers

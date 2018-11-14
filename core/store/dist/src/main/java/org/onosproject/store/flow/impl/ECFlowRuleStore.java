@@ -15,32 +15,9 @@
 */
 package org.onosproject.store.flow.impl;
 
-import java.util.Collections;
-import java.util.Dictionary;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Streams;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.util.KryoNamespace;
 import org.onlab.util.Tools;
 import org.onosproject.cfg.ComponentConfigService;
@@ -92,7 +69,28 @@ import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.WallClockTimestamp;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
+
+import java.util.Collections;
+import java.util.Dictionary;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static org.onlab.util.Tools.get;
@@ -107,68 +105,69 @@ import static org.onosproject.store.flow.impl.ECFlowRuleStoreMessageSubjects.REM
 import static org.onosproject.store.flow.impl.ECFlowRuleStoreMessageSubjects.REMOVE_FLOW_ENTRY;
 import static org.slf4j.LoggerFactory.getLogger;
 
+import static org.onosproject.store.OsgiPropertyConstants.*;
+
 /**
  * Manages inventory of flow rules using a distributed state management protocol.
  */
-@Component(immediate = true)
-@Service
+@Component(
+        immediate = true,
+        service = FlowRuleStore.class,
+        property = {
+                MESSAGE_HANDLER_THREAD_POOL_SIZE + ":Integer=" + MESSAGE_HANDLER_THREAD_POOL_SIZE_DEFAULT,
+                BACKUP_PERIOD_MILLIS + ":Integer=" + BACKUP_PERIOD_MILLIS_DEFAULT,
+                ANTI_ENTROPY_PERIOD_MILLIS + ":Integer=" + ANTI_ENTROPY_PERIOD_MILLIS_DEFAULT,
+                EC_FLOW_RULE_STORE_PERSISTENCE_ENABLED + ":Boolean=" + EC_FLOW_RULE_STORE_PERSISTENCE_ENABLED_DEFAULT,
+                MAX_BACKUP_COUNT + ":Integer=" + MAX_BACKUP_COUNT_DEFAULT
+        }
+)
 public class ECFlowRuleStore
     extends AbstractStore<FlowRuleBatchEvent, FlowRuleStoreDelegate>
     implements FlowRuleStore {
 
     private final Logger log = getLogger(getClass());
 
-    private static final int MESSAGE_HANDLER_THREAD_POOL_SIZE = 8;
-    private static final int DEFAULT_MAX_BACKUP_COUNT = 2;
-    private static final boolean DEFAULT_PERSISTENCE_ENABLED = false;
-    private static final int DEFAULT_BACKUP_PERIOD_MILLIS = 2000;
-    private static final int DEFAULT_ANTI_ENTROPY_PERIOD_MILLIS = 5000;
     private static final long FLOW_RULE_STORE_TIMEOUT_MILLIS = 5000;
 
-    @Property(name = "msgHandlerPoolSize", intValue = MESSAGE_HANDLER_THREAD_POOL_SIZE,
-        label = "Number of threads in the message handler pool")
-    private int msgHandlerPoolSize = MESSAGE_HANDLER_THREAD_POOL_SIZE;
+    /** Number of threads in the message handler pool. */
+    private int msgHandlerPoolSize = MESSAGE_HANDLER_THREAD_POOL_SIZE_DEFAULT;
 
-    @Property(name = "backupPeriod", intValue = DEFAULT_BACKUP_PERIOD_MILLIS,
-        label = "Delay in ms between successive backup runs")
-    private int backupPeriod = DEFAULT_BACKUP_PERIOD_MILLIS;
+    /** Delay in ms between successive backup runs. */
+    private int backupPeriod = BACKUP_PERIOD_MILLIS_DEFAULT;
 
-    @Property(name = "antiEntropyPeriod", intValue = DEFAULT_ANTI_ENTROPY_PERIOD_MILLIS,
-        label = "Delay in ms between anti-entropy runs")
-    private int antiEntropyPeriod = DEFAULT_ANTI_ENTROPY_PERIOD_MILLIS;
+    /** Delay in ms between anti-entropy runs. */
+    private int antiEntropyPeriod = ANTI_ENTROPY_PERIOD_MILLIS_DEFAULT;
 
-    @Property(name = "persistenceEnabled", boolValue = false,
-        label = "Indicates whether or not changes in the flow table should be persisted to disk.")
-    private boolean persistenceEnabled = DEFAULT_PERSISTENCE_ENABLED;
+    /** Indicates whether or not changes in the flow table should be persisted to disk. */
+    private boolean persistenceEnabled = EC_FLOW_RULE_STORE_PERSISTENCE_ENABLED_DEFAULT;
 
-    @Property(name = "backupCount", intValue = DEFAULT_MAX_BACKUP_COUNT,
-        label = "Max number of backup copies for each device")
-    private volatile int backupCount = DEFAULT_MAX_BACKUP_COUNT;
+    /** Max number of backup copies for each device. */
+    private volatile int backupCount = MAX_BACKUP_COUNT_DEFAULT;
 
     private InternalFlowTable flowTable = new InternalFlowTable();
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ReplicaInfoService replicaInfoManager;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterCommunicationService clusterCommunicator;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterService clusterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService configService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected MastershipService mastershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected PersistenceService persistenceService;
 
     private Map<Long, NodeId> pendingResponses = Maps.newConcurrentMap();
@@ -182,7 +181,7 @@ public class ECFlowRuleStore
     private final EventuallyConsistentMapListener<DeviceId, List<TableStatisticsEntry>> tableStatsListener =
         new InternalTableStatsListener();
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected StorageService storageService;
 
     protected final Serializer serializer = Serializer.using(KryoNamespace.newBuilder()
@@ -266,19 +265,19 @@ public class ECFlowRuleStore
             String s = get(properties, "msgHandlerPoolSize");
             newPoolSize = isNullOrEmpty(s) ? msgHandlerPoolSize : Integer.parseInt(s.trim());
 
-            s = get(properties, "backupPeriod");
+            s = get(properties, BACKUP_PERIOD_MILLIS);
             newBackupPeriod = isNullOrEmpty(s) ? backupPeriod : Integer.parseInt(s.trim());
 
-            s = get(properties, "backupCount");
+            s = get(properties, MAX_BACKUP_COUNT);
             newBackupCount = isNullOrEmpty(s) ? backupCount : Integer.parseInt(s.trim());
 
-            s = get(properties, "antiEntropyPeriod");
+            s = get(properties, ANTI_ENTROPY_PERIOD_MILLIS);
             newAntiEntropyPeriod = isNullOrEmpty(s) ? antiEntropyPeriod : Integer.parseInt(s.trim());
         } catch (NumberFormatException | ClassCastException e) {
-            newPoolSize = MESSAGE_HANDLER_THREAD_POOL_SIZE;
-            newBackupPeriod = DEFAULT_BACKUP_PERIOD_MILLIS;
-            newBackupCount = DEFAULT_MAX_BACKUP_COUNT;
-            newAntiEntropyPeriod = DEFAULT_ANTI_ENTROPY_PERIOD_MILLIS;
+            newPoolSize = MESSAGE_HANDLER_THREAD_POOL_SIZE_DEFAULT;
+            newBackupPeriod = BACKUP_PERIOD_MILLIS_DEFAULT;
+            newBackupCount = MAX_BACKUP_COUNT_DEFAULT;
+            newAntiEntropyPeriod = ANTI_ENTROPY_PERIOD_MILLIS_DEFAULT;
         }
 
         if (newBackupPeriod != backupPeriod) {

@@ -15,8 +15,9 @@
  */
 package org.onosproject.segmentrouting.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.segmentrouting.Policy;
 import org.onosproject.segmentrouting.PolicyHandler;
@@ -26,6 +27,7 @@ import org.onosproject.segmentrouting.TunnelPolicy;
 /**
  * Command to add a new policy.
  */
+@Service
 @Command(scope = "onos", name = "sr-policy-add",
         description = "Create a new policy")
 public class PolicyAddCommand extends AbstractShellCommand {
@@ -78,7 +80,7 @@ public class PolicyAddCommand extends AbstractShellCommand {
     String tunnelId;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
 
         SegmentRoutingService srService =
                 AbstractShellCommand.get(SegmentRoutingService.class);

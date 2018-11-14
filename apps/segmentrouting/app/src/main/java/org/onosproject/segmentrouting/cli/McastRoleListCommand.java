@@ -19,10 +19,13 @@ package org.onosproject.segmentrouting.cli;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.IpAddress;
 import org.onosproject.cli.AbstractShellCommand;
+import org.onosproject.cli.net.ConnectPointCompleter;
 import org.onosproject.mcast.cli.McastGroupCompleter;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.DeviceId;
@@ -40,6 +43,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 /**
  * Command to show the list of mcast roles.
  */
+@Service
 @Command(scope = "onos", name = "sr-mcast-role",
         description = "Lists all mcast roles")
 public class McastRoleListCommand extends AbstractShellCommand {
@@ -54,16 +58,18 @@ public class McastRoleListCommand extends AbstractShellCommand {
             description = "IP Address of the multicast group",
             valueToShowInHelp = "224.0.0.0",
             required = false, multiValued = false)
+    @Completion(McastGroupCompleter.class)
     String gAddr = null;
 
     @Option(name = "-src", aliases = "--connectPoint",
             description = "Source port of:XXXXXXXXXX/XX",
             valueToShowInHelp = "of:0000000000000001/1",
             required = false, multiValued = false)
+    @Completion(ConnectPointCompleter.class)
     String source = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         // Verify mcast group
         IpAddress mcastGroup = null;
         // We want to use source cp only for a specific group

@@ -16,14 +16,6 @@
 package org.onosproject.cip;
 
 import com.google.common.io.ByteStreams;
-
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.cluster.LeadershipEvent;
@@ -31,6 +23,12 @@ import org.onosproject.cluster.LeadershipEventListener;
 import org.onosproject.cluster.LeadershipService;
 import org.onosproject.cluster.NodeId;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +39,12 @@ import java.util.Properties;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static org.onlab.util.Tools.get;
+import static org.onosproject.cip.OsgiPropertyConstants.ALIAS_ADAPTER;
+import static org.onosproject.cip.OsgiPropertyConstants.ALIAS_ADAPTER_DEFAULT;
+import static org.onosproject.cip.OsgiPropertyConstants.ALIAS_IP;
+import static org.onosproject.cip.OsgiPropertyConstants.ALIAS_IP_DEFAULT;
+import static org.onosproject.cip.OsgiPropertyConstants.ALIAS_MASK;
+import static org.onosproject.cip.OsgiPropertyConstants.ALIAS_MASK_DEFAULT;
 
 /**
  * Manages cluster IP address alias.
@@ -56,20 +60,27 @@ import static org.onlab.util.Tools.get;
  * This will make sure that if the process is killed abruptly, the IP alias
  * will be dropped upon respawn.
  */
-@Component(immediate = true)
+@Component(
+    immediate = true,
+    property = {
+        ALIAS_IP + "=" + ALIAS_IP_DEFAULT,
+        ALIAS_MASK + "=" + ALIAS_MASK_DEFAULT,
+        ALIAS_ADAPTER + "=" + ALIAS_ADAPTER_DEFAULT
+    }
+)
 public class ClusterIpManager {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
     private static final String CLUSTER_IP = "cluster/ip";
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterService clusterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected LeadershipService leadershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
     private final LeadershipEventListener listener = new InternalLeadershipListener();
@@ -77,17 +88,14 @@ public class ClusterIpManager {
     private NodeId localId;
     private boolean wasLeader = false;
 
-    // By default there is no IP; this has to be configured
-    @Property(name = "aliasIp", value = "", label = "Alias IP address")
-    private String aliasIp = "";
+    /** Alias IP address. */
+    private String aliasIp = ALIAS_IP_DEFAULT;
 
-    public static final String DEFAULT_MASK = "255.255.0.0";
-    @Property(name = "aliasMask", value = DEFAULT_MASK, label = "Alias IP mask")
-    private String aliasMask = DEFAULT_MASK;
+    /** Alias IP mask. */
+    private String aliasMask = ALIAS_MASK_DEFAULT;
 
-    public static final String ETH_0 = "eth0:0";
-    @Property(name = "aliasAdapter", value = ETH_0, label = "Alias IP adapter")
-    private String aliasAdapter = ETH_0;
+    /** Alias IP adapter. */
+    private String aliasAdapter = ALIAS_ADAPTER_DEFAULT;
 
     @Activate
     protected void activate(ComponentContext context) {
@@ -116,9 +124,9 @@ public class ClusterIpManager {
     protected void modified(ComponentContext context) {
         log.info("Received configuration change...");
         Dictionary<?, ?> properties = context != null ? context.getProperties() : new Properties();
-        String newIp = get(properties, "aliasIp");
-        String newMask = get(properties, "aliasMask");
-        String newAdapter = get(properties, "aliasAdapter");
+        String newIp = get(properties, ALIAS_IP);
+        String newMask = get(properties, ALIAS_MASK);
+        String newAdapter = get(properties, ALIAS_ADAPTER);
 
         // Process any changes in the parameters...
         if (!Objects.equals(newIp, aliasIp) ||

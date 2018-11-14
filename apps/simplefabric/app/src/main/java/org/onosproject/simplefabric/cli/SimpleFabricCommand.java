@@ -15,14 +15,17 @@
  */
 package org.onosproject.simplefabric.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.simplefabric.api.SimpleFabricService;
 
 /**
  * CLI to interact with the SIMPLE_FABRIC application.
  */
+@Service
 @Command(scope = "onos", name = "simpleFabric",
          description = "Manages the SimpleFabric application")
 public class SimpleFabricCommand extends AbstractShellCommand {
@@ -30,10 +33,11 @@ public class SimpleFabricCommand extends AbstractShellCommand {
     @Argument(index = 0, name = "command",
               description = "Command: show|intents|reactive-intents|refresh|flush",
               required = true, multiValued = false)
+    @Completion(SimpleFabricCommandCompleter.class)
     String command = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
 
         SimpleFabricService simpleFabric = get(SimpleFabricService.class);
 

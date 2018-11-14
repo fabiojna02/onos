@@ -16,9 +16,10 @@
 
 package org.onosproject.openstacknode.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.openstacknode.api.NodeState;
 import org.onosproject.openstacknode.api.OpenstackNode;
@@ -28,6 +29,7 @@ import org.onosproject.openstacknode.api.OpenstackNodeService;
 /**
  * Initializes nodes for OpenStack node service.
  */
+@Service
 @Command(scope = "onos", name = "openstack-node-init",
         description = "Initializes nodes for OpenStack node service")
 public class OpenstackNodeInitCommand extends AbstractShellCommand {
@@ -46,7 +48,7 @@ public class OpenstackNodeInitCommand extends AbstractShellCommand {
     private String[] hostnames = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackNodeService osNodeService =
                 AbstractShellCommand.get(OpenstackNodeService.class);
         OpenstackNodeAdminService osNodeAdminService =

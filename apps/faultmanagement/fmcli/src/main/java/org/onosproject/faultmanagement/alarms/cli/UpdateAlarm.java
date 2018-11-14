@@ -16,14 +16,15 @@
 
 package org.onosproject.faultmanagement.alarms.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.faultmanagement.api.AlarmStore;
-import org.onosproject.incubator.net.faultmanagement.alarm.Alarm;
-import org.onosproject.incubator.net.faultmanagement.alarm.AlarmEntityId;
-import org.onosproject.incubator.net.faultmanagement.alarm.AlarmId;
-import org.onosproject.incubator.net.faultmanagement.alarm.DefaultAlarm;
+import org.onosproject.alarm.Alarm;
+import org.onosproject.alarm.AlarmEntityId;
+import org.onosproject.alarm.AlarmId;
+import org.onosproject.alarm.DefaultAlarm;
 
 import java.time.Instant;
 
@@ -32,6 +33,7 @@ import java.time.Instant;
  */
 @Command(scope = "onos", name = "alarm-update",
         description = "Updates an alarm")
+@Service
 public class UpdateAlarm extends AbstractShellCommand {
 
     @Argument(index = 0, name = "alarmId", description = "Unique alarm id",
@@ -49,7 +51,7 @@ public class UpdateAlarm extends AbstractShellCommand {
     private AlarmStore alarmStore = AbstractShellCommand.get(AlarmStore.class);
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         Alarm existing = alarmStore.getAlarm(AlarmId.alarmId(alarmId));
 
         DefaultAlarm.Builder newAlarmBuilder = new DefaultAlarm.Builder(existing);

@@ -16,8 +16,9 @@
 package org.onosproject.segmentrouting.cli;
 
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.segmentrouting.SegmentRoutingService;
@@ -35,6 +36,7 @@ import static org.onosproject.segmentrouting.pwaas.PwaasUtil.*;
 /**
  * Command to add a pseuwodire.
  */
+@Service
 @Command(scope = "onos", name = "sr-pw-add",
         description = "Add a pseudowire to the network configuration, if it already exists update it.")
 public class PseudowireAddCommand extends AbstractShellCommand {
@@ -90,7 +92,7 @@ public class PseudowireAddCommand extends AbstractShellCommand {
     String cP2OuterVlan;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
 
         SegmentRoutingService srService =
                 AbstractShellCommand.get(SegmentRoutingService.class);

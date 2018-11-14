@@ -16,7 +16,8 @@
 
 package org.onosproject.segmentrouting.cli;
 
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.flowobjective.NextObjective;
 import org.onosproject.segmentrouting.SegmentRoutingService;
@@ -28,11 +29,12 @@ import java.util.Map;
 /**
  * Command to read the current state of the pseudowire next stores.
  */
+@Service
 @Command(scope = "onos", name = "sr-next-pw",
         description = "Displays the current next-id for pseudowire")
 public class PseudowireNextListCommand extends AbstractShellCommand {
     @Override
-    protected void execute() {
+    protected void doExecute() {
         SegmentRoutingService srService =
                 AbstractShellCommand.get(SegmentRoutingService.class);
         print(srService.getPwInitNext());

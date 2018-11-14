@@ -16,7 +16,8 @@
 
 package org.onosproject.segmentrouting.cli;
 
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.segmentrouting.SegmentRoutingService;
 import org.onosproject.segmentrouting.storekey.VlanNextObjectiveStoreKey;
@@ -28,11 +29,12 @@ import java.util.Map;
 /**
  * Command to read the current state of the vlanNextObjStore.
  */
+@Service
 @Command(scope = "onos", name = "sr-next-vlan",
         description = "Displays the current vlan / next-id it mapping")
 public class NextVlanCommand extends AbstractShellCommand {
     @Override
-    protected void execute() {
+    protected void doExecute() {
         SegmentRoutingService srService =
                 AbstractShellCommand.get(SegmentRoutingService.class);
         print(srService.getVlanNextObjStore());

@@ -19,14 +19,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.IpPrefix;
 import org.onlab.util.Tools;
@@ -90,6 +82,12 @@ import org.onosproject.openstackvtap.api.OpenstackVtapService;
 import org.onosproject.openstackvtap.api.OpenstackVtapStore;
 import org.onosproject.openstackvtap.api.OpenstackVtapStoreDelegate;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.util.Dictionary;
@@ -125,6 +123,8 @@ import static org.onosproject.openstacknetworking.api.Constants.VTAP_OUTBOUND_TA
 import static org.onosproject.openstacknode.api.Constants.INTEGRATION_BRIDGE;
 import static org.onosproject.openstacknode.api.NodeState.COMPLETE;
 import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.COMPUTE;
+import static org.onosproject.openstackvtap.impl.OsgiPropertyConstants.TUNNEL_NICIRA;
+import static org.onosproject.openstackvtap.impl.OsgiPropertyConstants.TUNNEL_NICRA_DEFAULT;
 import static org.onosproject.openstackvtap.util.OpenstackVtapUtil.containsIp;
 import static org.onosproject.openstackvtap.util.OpenstackVtapUtil.dumpStackTrace;
 import static org.onosproject.openstackvtap.util.OpenstackVtapUtil.getGroupKey;
@@ -137,48 +137,52 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * Provides implementation of the openstack vtap and openstack vtap network APIs.
  */
-@Component(immediate = true)
-@Service
+@Component(
+    immediate = true,
+    service = { OpenstackVtapService.class, OpenstackVtapAdminService.class },
+    property = {
+        TUNNEL_NICIRA + ":Boolean=" + TUNNEL_NICRA_DEFAULT
+    }
+)
 public class OpenstackVtapManager
         extends AbstractListenerManager<OpenstackVtapEvent, OpenstackVtapListener>
         implements OpenstackVtapService, OpenstackVtapAdminService {
 
     private final Logger log = getLogger(getClass());
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterService clusterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected LeadershipService leadershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected FlowRuleService flowRuleService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected GroupService groupService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackNodeService osNodeService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+
     protected HostService hostService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackVtapStore store;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService componentConfigService;
 
-    private static final boolean DEFAULT_TUNNEL_NICRA = false;
-    @Property(name = TUNNEL_NICIRA, boolValue = DEFAULT_TUNNEL_NICRA,
-            label = "Use nicra extension for tunneling")
-    private boolean tunnelNicira = DEFAULT_TUNNEL_NICRA;
+    /** Use nicra extension for tunneling. */
+    private boolean tunnelNicira = TUNNEL_NICRA_DEFAULT;
 
     public static final String APP_ID = "org.onosproject.openstackvtap";
     public static final String VTAP_DESC_NULL = "vtap field %s cannot be null";
@@ -210,7 +214,6 @@ public class OpenstackVtapManager
                     IpPrefix.valueOf(IpAddress.valueOf("0.0.0.0"), 0);
     private static final String TABLE_EXTENSION = "table";
     private static final String TUNNEL_DST_EXTENSION = "tunnelDst";
-    private static final String TUNNEL_NICIRA = "tunnelNicira";
 
     private static final int VTAP_NETWORK_KEY = 0;
 

@@ -16,10 +16,15 @@
 package org.onosproject.segmentrouting.cli;
 
 import com.google.common.collect.Sets;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.VlanId;
 import org.onosproject.cli.AbstractShellCommand;
+import org.onosproject.cli.PlaceholderCompleter;
+import org.onosproject.cli.net.DeviceIdCompleter;
+import org.onosproject.cli.net.PortNumberCompleter;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
 import org.onosproject.segmentrouting.xconnect.api.XconnectService;
@@ -29,31 +34,36 @@ import java.util.Set;
 /**
  * Creates Xconnect.
  */
+@Service
 @Command(scope = "onos", name = "sr-xconnect-add", description = "Create Xconnect")
 public class XconnectAddCommand extends AbstractShellCommand {
     @Argument(index = 0, name = "deviceId",
             description = "Device ID",
             required = true, multiValued = false)
+    @Completion(DeviceIdCompleter.class)
     private String deviceIdStr;
 
     @Argument(index = 1, name = "vlanId",
             description = "VLAN ID",
             required = true, multiValued = false)
+    @Completion(PlaceholderCompleter.class)
     private String vlanIdStr;
 
     @Argument(index = 2, name = "port1",
             description = "Port 1",
             required = true, multiValued = false)
+    @Completion(PortNumberCompleter.class)
     private String port1Str;
 
     @Argument(index = 3, name = "port2",
             description = "Port 2",
             required = true, multiValued = false)
+    @Completion(PortNumberCompleter.class)
     private String port2Str;
 
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         DeviceId deviceId = DeviceId.deviceId(deviceIdStr);
         VlanId vlanId = VlanId.vlanId(vlanIdStr);
         PortNumber port1 = PortNumber.portNumber(port1Str);

@@ -18,9 +18,11 @@ package org.onosproject.cli.net;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.common.collect.Lists;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
+import org.apache.karaf.shell.api.action.Option;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
@@ -44,6 +46,7 @@ import java.util.stream.Stream;
 /**
  * Lists all groups in the system.
  */
+@Service
 @Command(scope = "onos", name = "groups",
         description = "Lists all groups in the system")
 public class GroupsListCommand extends AbstractShellCommand {
@@ -57,10 +60,12 @@ public class GroupsListCommand extends AbstractShellCommand {
 
     @Argument(index = 1, name = "uri", description = "Device ID",
             required = false, multiValued = false)
+    @Completion(DeviceIdCompleter.class)
     String uri = null;
 
     @Argument(index = 0, name = "state", description = "Group state",
             required = false, multiValued = false)
+    @Completion(GroupStatusCompleter.class)
     String state;
 
     @Option(name = "-c", aliases = "--count",
@@ -76,6 +81,7 @@ public class GroupsListCommand extends AbstractShellCommand {
     @Option(name = "-t", aliases = "--type",
             description = "Print groups with specified type",
             required = false, multiValued = false)
+    @Completion(GroupTypeCompleter.class)
     private String type = null;
 
 
@@ -90,7 +96,7 @@ public class GroupsListCommand extends AbstractShellCommand {
     }
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         DeviceService deviceService = get(DeviceService.class);
         GroupService groupService = get(GroupService.class);
         SortedMap<Device, List<Group>> sortedGroups =

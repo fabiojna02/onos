@@ -18,15 +18,6 @@ package org.onosproject.routing.fpm;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.ReferencePolicy;
-import org.apache.felix.scr.annotations.Service;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelException;
@@ -75,19 +66,26 @@ import org.onosproject.store.service.ConsistentMap;
 import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Dictionary;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -97,12 +95,28 @@ import java.util.stream.Collectors;
 
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.routing.fpm.OsgiPropertyConstants.CLEAR_ROUTES;
+import static org.onosproject.routing.fpm.OsgiPropertyConstants.CLEAR_ROUTES_DEFAULT;
+import static org.onosproject.routing.fpm.OsgiPropertyConstants.PD_PUSH_ENABLED;
+import static org.onosproject.routing.fpm.OsgiPropertyConstants.PD_PUSH_ENABLED_DEFAULT;
+import static org.onosproject.routing.fpm.OsgiPropertyConstants.PD_PUSH_NEXT_HOP_IPV4;
+import static org.onosproject.routing.fpm.OsgiPropertyConstants.PD_PUSH_NEXT_HOP_IPV4_DEFAULT;
+import static org.onosproject.routing.fpm.OsgiPropertyConstants.PD_PUSH_NEXT_HOP_IPV6;
+import static org.onosproject.routing.fpm.OsgiPropertyConstants.PD_PUSH_NEXT_HOP_IPV6_DEFAULT;
 
 /**
  * Forwarding Plane Manager (FPM) route source.
  */
-@Service
-@Component(immediate = true)
+@Component(
+       immediate = true,
+       service = FpmInfoService.class,
+       property = {
+           CLEAR_ROUTES + ":Boolean=" + CLEAR_ROUTES_DEFAULT,
+           PD_PUSH_ENABLED + ":Boolean=" + PD_PUSH_ENABLED_DEFAULT,
+           PD_PUSH_NEXT_HOP_IPV4 + "=" + PD_PUSH_NEXT_HOP_IPV4_DEFAULT,
+           PD_PUSH_NEXT_HOP_IPV6 + "=" + PD_PUSH_NEXT_HOP_IPV6_DEFAULT,
+       }
+)
 public class FpmManager implements FpmInfoService {
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -111,32 +125,32 @@ public class FpmManager implements FpmInfoService {
     private static final int IDLE_TIMEOUT_SECS = 5;
     private static final String LOCK_NAME = "fpm-manager-lock";
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService componentConfigService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected RouteAdminService routeService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterService clusterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected StorageService storageService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected InterfaceService interfaceService;
 
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL_UNARY,
+    @Reference(cardinality = ReferenceCardinality.OPTIONAL,
                bind = "bindRipStore",
                unbind = "unbindRipStore",
                policy = ReferencePolicy.DYNAMIC,
                target = "(fpm_type=RIP)")
     protected volatile FpmPrefixStore ripStore;
 
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL_UNARY,
+    @Reference(cardinality = ReferenceCardinality.OPTIONAL,
                bind = "bindDhcpStore",
                unbind = "unbindDhcpStore",
                policy = ReferencePolicy.DYNAMIC,
@@ -162,20 +176,16 @@ public class FpmManager implements FpmInfoService {
     //Local cache for peers to be used in case of cluster partition.
     private Map<FpmPeer, Set<FpmConnectionInfo>> localPeers = new ConcurrentHashMap<>();
 
-    @Property(name = "clearRoutes", boolValue = true,
-            label = "Whether to clear routes when the FPM connection goes down")
-    private boolean clearRoutes = true;
+    /** Whether to clear routes when the FPM connection goes down. */
+    private boolean clearRoutes = CLEAR_ROUTES_DEFAULT;
 
-    @Property(name = "pdPushEnabled", boolValue = false,
-            label = "Whether to push prefixes to Quagga over fpm connection")
-    private boolean pdPushEnabled = false;
+    /** Whether to push prefixes to Quagga over fpm connection. */
+    private boolean pdPushEnabled = PD_PUSH_ENABLED_DEFAULT;
 
-    @Property(name = "pdPushNextHopIPv4", value = "",
-            label = "IPv4 next-hop address for PD Pushing.")
+    /** IPv4 next-hop address for PD Pushing. */
     private List<Ip4Address> pdPushNextHopIPv4 = null;
 
-    @Property(name = "pdPushNextHopIPv6", value = "",
-            label = "IPv6 next-hop address for PD Pushing.")
+    /** IPv6 next-hop address for PD Pushing. */
     private List<Ip6Address> pdPushNextHopIPv6 = null;
 
     protected void bindRipStore(FpmPrefixStore store) {
@@ -268,13 +278,13 @@ public class FpmManager implements FpmInfoService {
         if (properties == null) {
             return;
         }
-        String strClearRoutes = Tools.get(properties, "clearRoutes");
+        String strClearRoutes = Tools.get(properties, CLEAR_ROUTES);
         if (strClearRoutes != null) {
             clearRoutes = Boolean.parseBoolean(strClearRoutes);
             log.info("clearRoutes is {}", clearRoutes);
         }
 
-        String strPdPushEnabled = Tools.get(properties, "pdPushEnabled");
+        String strPdPushEnabled = Tools.get(properties, PD_PUSH_ENABLED);
         if (strPdPushEnabled != null) {
             boolean oldValue = pdPushEnabled;
             pdPushEnabled = Boolean.parseBoolean(strPdPushEnabled);
@@ -283,7 +293,7 @@ public class FpmManager implements FpmInfoService {
                 pdPushNextHopIPv4 = new ArrayList<Ip4Address>();
                 pdPushNextHopIPv6 = new ArrayList<Ip6Address>();
 
-                String strPdPushNextHopIPv4 = Tools.get(properties, "pdPushNextHopIPv4");
+                String strPdPushNextHopIPv4 = Tools.get(properties, PD_PUSH_NEXT_HOP_IPV4);
                 if (strPdPushNextHopIPv4 != null) {
                     List<String> strPdPushNextHopIPv4List = Arrays.asList(strPdPushNextHopIPv4.split(","));
                     for (String nextHop : strPdPushNextHopIPv4List) {
@@ -291,7 +301,7 @@ public class FpmManager implements FpmInfoService {
                         pdPushNextHopIPv4.add(Ip4Address.valueOf(nextHop));
                     }
                 }
-                String strPdPushNextHopIPv6 = Tools.get(properties, "pdPushNextHopIPv6");
+                String strPdPushNextHopIPv6 = Tools.get(properties, PD_PUSH_NEXT_HOP_IPV6);
                 if (strPdPushNextHopIPv6 != null) {
                     List<String> strPdPushNextHopIPv6List = Arrays.asList(strPdPushNextHopIPv6.split(","));
                     for (String nextHop : strPdPushNextHopIPv6List) {

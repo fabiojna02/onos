@@ -16,9 +16,7 @@
 
 package org.onosproject.faultmanagement.alarms.cli.completer;
 
-import org.apache.felix.service.command.CommandSession;
-import org.apache.karaf.shell.console.CommandSessionHolder;
-import org.apache.karaf.shell.console.completer.ArgumentCompleter;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractChoicesCompleter;
 import org.onosproject.faultmanagement.alarms.cli.UpdateAlarm;
 
@@ -29,16 +27,13 @@ import java.util.List;
 /**
  * CLI completer for Alarm Field values.
  */
+@Service
 public class AlarmFieldValueCompleter extends AbstractChoicesCompleter {
     @Override
     protected List<String> choices() {
 
         List<String> choices = new ArrayList<>();
-        CommandSession session = CommandSessionHolder.getSession();
-
-        ArgumentCompleter.ArgumentList list =
-                (ArgumentCompleter.ArgumentList) session.get(ArgumentCompleter.ARGUMENTS_LIST);
-        UpdateAlarm.AlarmField field = UpdateAlarm.AlarmField.valueOf(list.getArguments()[2]);
+        UpdateAlarm.AlarmField field = UpdateAlarm.AlarmField.valueOf(commandLine.getArguments()[2]);
 
         switch (field) {
             case ACKNOWLEDGED:

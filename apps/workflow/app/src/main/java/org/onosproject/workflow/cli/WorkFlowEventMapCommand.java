@@ -18,8 +18,9 @@ package org.onosproject.workflow.cli;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.workflow.api.ContextEventMapStore;
 import org.onosproject.workflow.api.WorkflowException;
@@ -27,14 +28,15 @@ import org.onosproject.workflow.api.WorkflowException;
 import java.util.Arrays;
 import java.util.Objects;
 
+@Service
 @Command(scope = "onos", name = "workflow-eventmap", description = "workflow event map cli")
 public class WorkFlowEventMapCommand extends AbstractShellCommand {
 
-    @Argument (index = 0, name = "cmd", description = "command(print)", required = true)
+    @Argument(index = 0, name = "cmd", description = "command(print)", required = true)
     private String cmd = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         if (Objects.isNull(cmd)) {
             error("invalid cmd parameter");
             return;

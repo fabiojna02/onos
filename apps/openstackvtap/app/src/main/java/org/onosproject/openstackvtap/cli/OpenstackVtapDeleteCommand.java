@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 package org.onosproject.openstackvtap.cli;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
-import org.apache.karaf.shell.commands.Argument;
+import org.apache.karaf.shell.api.action.Argument;
 import org.onosproject.openstackvtap.api.OpenstackVtap;
 import org.onosproject.openstackvtap.api.OpenstackVtapAdminService;
 import org.onosproject.openstackvtap.api.OpenstackVtapId;
@@ -24,6 +25,7 @@ import org.onosproject.openstackvtap.api.OpenstackVtapId;
 /**
  * Delete a openstack vtap rule from the existing vtaps.
  */
+@Service
 @Command(scope = "onos", name = "openstack-vtap-del",
         description = "OpenstackVtap deactivate")
 public class OpenstackVtapDeleteCommand extends AbstractShellCommand {
@@ -35,7 +37,7 @@ public class OpenstackVtapDeleteCommand extends AbstractShellCommand {
     String vtapId = "";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackVtap vtap = vtapService.removeVtap(OpenstackVtapId.vtapId(vtapId));
         if (vtap != null) {
             print("Removed OpenstackVtap with id { %s }", vtap.id().toString());

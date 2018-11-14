@@ -15,8 +15,10 @@
  */
 package org.onosproject.cli.app;
 
-import org.apache.karaf.shell.console.completer.ArgumentCompleter;
-import org.apache.karaf.shell.console.completer.StringsCompleter;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
+import org.apache.karaf.shell.api.console.CommandLine;
+import org.apache.karaf.shell.api.console.Session;
+import org.apache.karaf.shell.support.completers.StringsCompleter;
 import org.onosproject.app.ApplicationService;
 import org.onosproject.app.ApplicationState;
 import org.onosproject.cli.AbstractCompleter;
@@ -42,15 +44,15 @@ import static org.onosproject.cli.AbstractShellCommand.get;
 /**
  * Application name completer.
  */
+@Service
 public class ApplicationNameCompleter extends AbstractCompleter {
     @Override
-    public int complete(String buffer, int cursor, List<String> candidates) {
+    public int complete(Session session, CommandLine commandLine, List<String> candidates) {
         // Delegate string completer
         StringsCompleter delegate = new StringsCompleter();
 
         // Command name is the second argument.
-        ArgumentCompleter.ArgumentList list = getArgumentList();
-        String cmd = list.getArguments()[1];
+        String cmd = commandLine.getArguments()[1];
 
         // Grab apps already on the command (to prevent tab-completed duplicates)
         // FIXME: This does not work.
@@ -80,7 +82,7 @@ public class ApplicationNameCompleter extends AbstractCompleter {
         }
 
         // add unique suffix to candidates, if user has something in buffer
-        if (!Strings.isNullOrEmpty(buffer)) {
+        if (!Strings.isNullOrEmpty(commandLine.getCursorArgument())) {
             List<String> suffixCandidates = strings.stream()
                     // remove onos common prefix
                     .map(full -> full.replaceFirst("org\\.onosproject\\.", ""))
@@ -107,7 +109,7 @@ public class ApplicationNameCompleter extends AbstractCompleter {
         }
 
         // Now let the completer do the work for figuring out what to offer.
-        return delegate.complete(buffer, cursor, candidates);
+        return delegate.complete(session, commandLine, candidates);
     }
 
 }

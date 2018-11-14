@@ -15,13 +15,14 @@
 */
 package org.onosproject.ospf.cli;
 
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.ospf.controller.OspfArea;
 import org.onosproject.ospf.controller.OspfController;
@@ -39,6 +40,7 @@ import java.util.List;
 /**
  * Representation of OSPF cli commands.
  */
+@Service
 @Component(immediate = true)
 @Command(scope = "onos", name = "ospf", description = "list database")
 public class ApplicationOspfCommand extends AbstractShellCommand {
@@ -57,7 +59,7 @@ public class ApplicationOspfCommand extends AbstractShellCommand {
     protected static final String DROTHER = "DROther";
     static final String DATABASE = "database";
     static final String NEIGHBORLIST = "neighbors";
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OspfController ospfController;
     @Argument(index = 0, name = "name",
             description = "database|neighborlist",
@@ -95,7 +97,7 @@ public class ApplicationOspfCommand extends AbstractShellCommand {
     }
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         if (DATABASE.equals(name)) {
             buildOspfDatabaseInformation();
         } else if (NEIGHBORLIST.equals(name)) {

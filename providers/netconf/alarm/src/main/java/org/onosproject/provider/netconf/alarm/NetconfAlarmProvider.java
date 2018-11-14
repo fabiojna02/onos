@@ -18,17 +18,17 @@ package org.onosproject.provider.netconf.alarm;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.onosproject.incubator.net.faultmanagement.alarm.Alarm;
-import org.onosproject.incubator.net.faultmanagement.alarm.AlarmProvider;
-import org.onosproject.incubator.net.faultmanagement.alarm.AlarmProviderService;
-import org.onosproject.incubator.net.faultmanagement.alarm.AlarmProviderRegistry;
-import org.onosproject.incubator.net.faultmanagement.alarm.AlarmTranslator;
-import org.onosproject.incubator.net.faultmanagement.alarm.DeviceAlarmConfig;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.onosproject.alarm.Alarm;
+import org.onosproject.alarm.AlarmProvider;
+import org.onosproject.alarm.AlarmProviderService;
+import org.onosproject.alarm.AlarmProviderRegistry;
+import org.onosproject.alarm.AlarmTranslator;
+import org.onosproject.alarm.DeviceAlarmConfig;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.device.DeviceService;
@@ -61,23 +61,23 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * Provider which uses an Alarm Manager to keep track of device notifications.
  */
-@Component(immediate = true)
+@Component(immediate = true, service = AlarmProvider.class)
 public class NetconfAlarmProvider extends AbstractProvider implements AlarmProvider {
 
     public static final String ACTIVE = "active";
     private final Logger log = getLogger(getClass());
     private final AlarmTranslator translator = new NetconfAlarmTranslator();
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected AlarmProviderRegistry providerRegistry;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetconfController controller;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DriverService driverService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
     protected AlarmProviderService providerService;

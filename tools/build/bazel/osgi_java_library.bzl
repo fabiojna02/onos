@@ -83,6 +83,7 @@ def _bnd_impl(ctx):
         web_context = "NONE"
     web_xml = ctx.attr.web_xml
     dynamicimportPackages = ""
+    karaf_commands = ctx.attr.karaf_commands
     cp = ""
 
     inputDependencies = [input_file]
@@ -119,6 +120,7 @@ def _bnd_impl(ctx):
         dynamicimportPackages,
         "classes",
         bundle_classpath,
+        karaf_commands,
     ]
 
     ctx.actions.run(
@@ -151,6 +153,7 @@ _bnd = rule(
         "web_context": attr.string(),
         "web_xml": attr.label_list(allow_files = True),
         "include_resources": attr.string(),
+        "karaf_commands": attr.string(),
         "_bnd_exe": attr.label(
             executable = True,
             cfg = "host",
@@ -163,6 +166,46 @@ _bnd = rule(
         "osgi_jar": "lib%{name}.jar",
     },
     implementation = _bnd_impl,
+)
+
+"""
+    Implementation of the rule to generate cfgdef files from java class source
+"""
+
+def _cfgdef_impl(ctx):
+    output_jar = ctx.outputs.cfgdef_jar.path
+
+    arguments = [
+        output_jar,
+    ]
+
+    for src in ctx.files.srcs:
+        arguments.append(src.path)
+
+    ctx.actions.run(
+        inputs = ctx.files.srcs,
+        outputs = [ctx.outputs.cfgdef_jar],
+        arguments = arguments,
+        progress_message = "Running cfgdef generator on: %s" % ctx.attr.name,
+        executable = ctx.executable._cfgdef_generator_exe,
+    )
+
+"""
+    Rule definition to call cfgdef generator to create the *.cfgdef files from java sources
+"""
+_cfgdef = rule(
+    attrs = {
+        "srcs": attr.label_list(allow_files = True),
+        "_cfgdef_generator_exe": attr.label(
+            executable = True,
+            cfg = "host",
+            allow_files = True,
+            default = Label("//tools/build/cfgdef:cfgdef_generator"),
+        ),
+        "cfgdef_jar": attr.output(),
+    },
+    fragments = ["java"],
+    implementation = _cfgdef_impl,
 )
 
 """
@@ -183,11 +226,9 @@ def _swagger_java_impl(ctx):
 
     srcs_arg = ""
     resources_arg = ""
-    input_dependencies = []
 
     for file in ctx.files.srcs:
         srcs_arg += file.path + ","
-        input_dependencies.append(file)
 
     for resource in resources_arg:
         resources_arg += resource.path + ","
@@ -233,11 +274,9 @@ def _swagger_json_impl(ctx):
 
     srcs_arg = ""
     resources_arg = ""
-    input_dependencies = []
 
     for file in ctx.files.srcs:
         srcs_arg += file.path + ","
-        input_dependencies.append(file)
 
     for resource in resources_arg:
         resources_arg += resource.path + ","
@@ -281,7 +320,7 @@ _swagger_java = rule(
             executable = True,
             cfg = "host",
             allow_files = True,
-            default = Label("//tools/build/buck-plugin:swagger_generator"),
+            default = Label("//tools/build/swagger:swagger_generator"),
         ),
         "swagger_java": attr.output(),
     },
@@ -305,7 +344,7 @@ _swagger_json = rule(
             executable = True,
             cfg = "host",
             allow_files = True,
-            default = Label("//tools/build/buck-plugin:swagger_generator"),
+            default = Label("//tools/build/swagger:swagger_generator"),
         ),
         "swagger_json": attr.output(),
     },
@@ -384,7 +423,8 @@ def osgi_jar_with_tests(
         api_description = "",
         api_package = "",
         import_packages = None,
-        bundle_classpath = ""):
+        bundle_classpath = "",
+        karaf_command_packages = []):
     if name == None:
         name = _auto_name()
     if srcs == None:
@@ -410,6 +450,7 @@ def osgi_jar_with_tests(
 
     native_srcs = srcs
     native_resources = resources
+
     if web_context != None and api_title != "" and len(resources) != 0:
         # generate Swagger files if needed
         _swagger_java(
@@ -445,12 +486,19 @@ def osgi_jar_with_tests(
 
     javacopts = ["-XepDisableAllChecks"] if suppress_errorprone else []
 
+    _cfgdef(
+        name = name + "_cfgdef_jar",
+        srcs = native_srcs,
+        visibility = visibility,
+        cfgdef_jar = name + "_cfgdef.jar",
+    )
+
     # compile the Java code
     if len(resource_jars) > 0:
         native.java_library(
             name = name + "-native",
             srcs = native_srcs,
-            resource_jars = resource_jars,
+            resource_jars = resource_jars + [name + "_cfgdef_jar"],
             deps = deps,
             visibility = visibility,
             javacopts = javacopts,
@@ -459,12 +507,14 @@ def osgi_jar_with_tests(
         native.java_library(
             name = name + "-native",
             srcs = native_srcs,
+            resource_jars = [name + "_cfgdef_jar"],
             resources = native_resources,
             deps = deps,
             visibility = visibility,
             javacopts = javacopts,
         )
 
+    karaf_command_packages_string = ",".join(karaf_command_packages)
     _bnd(
         name = name,
         source = name + "-native",
@@ -477,6 +527,7 @@ def osgi_jar_with_tests(
         web_context = web_context,
         web_xml = web_xml,
         include_resources = _include_resources_to_string(include_resources),
+        karaf_commands = karaf_command_packages_string,
     )
 
     # rule for generating pom file for publishing
@@ -564,7 +615,8 @@ def osgi_jar(
         api_version = "",
         api_description = "",
         api_package = "",
-        bundle_classpath = ""):
+        bundle_classpath = "",
+        karaf_command_packages = []):
     if srcs == None:
         srcs = _all_java_sources()
     if deps == None:
@@ -594,6 +646,7 @@ def osgi_jar(
         api_package = api_package,
         web_context = web_context,
         bundle_classpath = bundle_classpath,
+        karaf_command_packages = karaf_command_packages,
     )
 
 """
@@ -637,7 +690,8 @@ def osgi_proto_jar(
         deps = [],
         group = "org.onosproject",
         visibility = ["//visibility:public"],
-        version = ONOS_VERSION):
+        version = ONOS_VERSION,
+        karaf_command_packages = []):
     if name == None:
         name = _auto_name()
     native.java_proto_library(
@@ -679,4 +733,5 @@ def osgi_proto_jar(
         suppress_errorprone = True,
         suppress_checkstyle = True,
         suppress_javadocs = True,
+        karaf_command_packages = karaf_command_packages,
     )

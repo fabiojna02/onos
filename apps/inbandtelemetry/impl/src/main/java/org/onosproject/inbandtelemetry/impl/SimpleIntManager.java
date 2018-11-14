@@ -17,12 +17,6 @@ package org.onosproject.inbandtelemetry.impl;
 
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Striped;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.util.KryoNamespace;
 import org.onlab.util.SharedScheduledExecutors;
 import org.onosproject.core.ApplicationId;
@@ -56,6 +50,11 @@ import org.onosproject.store.service.MapEventListener;
 import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.Versioned;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.util.Collection;
@@ -84,8 +83,7 @@ import static org.slf4j.LoggerFactory.getLogger;
  * configures a device by cleaning-up any previous state and applying the new
  * one.
  */
-@Component(immediate = true)
-@Service
+@Component(immediate = true, service = IntService.class)
 public class SimpleIntManager implements IntService {
 
     private final Logger log = getLogger(getClass());
@@ -94,19 +92,19 @@ public class SimpleIntManager implements IntService {
 
     private static final String APP_NAME = "org.onosproject.inbandtelemetry";
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private StorageService storageService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private MastershipService mastershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private HostService hostService;
 
     private final Striped<Lock> deviceLocks = Striped.lock(10);

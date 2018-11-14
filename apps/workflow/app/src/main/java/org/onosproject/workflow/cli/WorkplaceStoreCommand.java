@@ -15,9 +15,10 @@
  */
 package org.onosproject.workflow.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.workflow.api.WorkflowContext;
 import org.onosproject.workflow.api.WorkflowException;
@@ -29,11 +30,12 @@ import org.onosproject.workflow.api.WorkplaceStore;
 import java.util.Arrays;
 import java.util.Objects;
 
+@Service
 @Command(scope = "onos", name = "workplace",
         description = "workplace cli")
 public class WorkplaceStoreCommand extends AbstractShellCommand {
 
-    @Argument (index = 0, name = "cmd", description = "command(add/rm/clear/print)", required = false)
+    @Argument(index = 0, name = "cmd", description = "command(add/rm/clear/print)", required = false)
     private String cmd = null;
 
     @Argument (index = 1, name = "name", description = "workspace name", required = false)
@@ -48,7 +50,7 @@ public class WorkplaceStoreCommand extends AbstractShellCommand {
     private String exFilter = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
 
         if (Objects.isNull(cmd)) {
             printAllWorkplace();

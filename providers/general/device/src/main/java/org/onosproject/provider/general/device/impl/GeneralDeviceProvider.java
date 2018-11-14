@@ -20,13 +20,6 @@ import com.google.common.annotations.Beta;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Striped;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.ChassisId;
 import org.onlab.util.ItemNotFoundException;
 import org.onlab.util.Tools;
@@ -79,6 +72,12 @@ import org.onosproject.net.provider.AbstractProvider;
 import org.onosproject.net.provider.ProviderId;
 import org.onosproject.provider.general.device.api.GeneralProviderDeviceConfig;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.security.SecureRandom;
@@ -107,6 +106,7 @@ import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.device.DeviceEvent.Type;
+import static org.onosproject.provider.general.device.impl.OsgiPropertyConstants.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -115,7 +115,12 @@ import static org.slf4j.LoggerFactory.getLogger;
  * also delegated to the DeviceHandshaker driver.
  */
 @Beta
-@Component(immediate = true)
+@Component(immediate = true,
+        property = {
+                STATS_POLL_FREQUENCY + ":Integer=" + STATS_POLL_FREQUENCY_DEFAULT,
+                PROBE_FREQUENCY + ":Integer=" + PROBE_FREQUENCY_DEFAULT,
+                OP_TIMEOUT_SHORT + ":Integer=" + OP_TIMEOUT_SHORT_DEFAULT,
+        })
 public class GeneralDeviceProvider extends AbstractProvider
         implements DeviceProvider {
 
@@ -132,54 +137,48 @@ public class GeneralDeviceProvider extends AbstractProvider
     private static final Set<String> PIPELINE_CONFIGURABLE_PROTOCOLS =
             ImmutableSet.of("p4runtime");
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private DeviceProviderRegistry providerRegistry;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private ComponentConfigService componentConfigService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private NetworkConfigRegistry cfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private DriverService driverService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private MastershipService mastershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private PiPipeconfService pipeconfService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private PiPipeconfWatchdogService pipeconfWatchdogService;
 
-    private static final String STATS_POLL_FREQUENCY = "deviceStatsPollFrequency";
-    private static final int DEFAULT_STATS_POLL_FREQUENCY = 10;
-    @Property(name = STATS_POLL_FREQUENCY, intValue = DEFAULT_STATS_POLL_FREQUENCY,
-            label = "Configure poll frequency for port status and statistics; " +
-                    "default is 10 sec")
-    private int statsPollFrequency = DEFAULT_STATS_POLL_FREQUENCY;
+    /**
+     * Configure poll frequency for port status and statistics; default is 10 sec.
+     */
+    private int statsPollFrequency = STATS_POLL_FREQUENCY_DEFAULT;
 
-    private static final String PROBE_FREQUENCY = "deviceProbeFrequency";
-    private static final int DEFAULT_PROBE_FREQUENCY = 10;
-    @Property(name = PROBE_FREQUENCY, intValue = DEFAULT_PROBE_FREQUENCY,
-            label = "Configure probe frequency for checking device availability; " +
-                    "default is 10 sec")
-    private int probeFrequency = DEFAULT_PROBE_FREQUENCY;
+    /**
+     * Configure probe frequency for checking device availability; default is 10 sec.
+     */
+    private int probeFrequency = PROBE_FREQUENCY_DEFAULT;
 
-    private static final String OP_TIMEOUT_SHORT = "deviceOperationTimeoutShort";
-    private static final int DEFAULT_OP_TIMEOUT_SHORT = 10;
-    @Property(name = OP_TIMEOUT_SHORT, intValue = DEFAULT_OP_TIMEOUT_SHORT,
-            label = "Configure timeout in seconds for device operations " +
-                    "that are supposed to take a short time " +
-                    "(e.g. checking device reachability); default is 10 seconds")
-    private int opTimeoutShort = DEFAULT_OP_TIMEOUT_SHORT;
+    /**
+     * Configure timeout in seconds for device operations that are supposed to take a short time
+     * (e.g. checking device reachability); default is 10 seconds.
+     */
+    private int opTimeoutShort = OP_TIMEOUT_SHORT_DEFAULT;
 
     //FIXME to be removed when netcfg will issue device events in a bundle or
     //ensures all configuration needed is present
@@ -236,16 +235,16 @@ public class GeneralDeviceProvider extends AbstractProvider
         Dictionary<?, ?> properties = context.getProperties();
         final int oldStatsPollFrequency = statsPollFrequency;
         statsPollFrequency = Tools.getIntegerProperty(
-                properties, STATS_POLL_FREQUENCY, DEFAULT_STATS_POLL_FREQUENCY);
+                properties, STATS_POLL_FREQUENCY, STATS_POLL_FREQUENCY_DEFAULT);
         log.info("Configured. {} is configured to {} seconds",
                  STATS_POLL_FREQUENCY, statsPollFrequency);
         final int oldProbeFrequency = probeFrequency;
         probeFrequency = Tools.getIntegerProperty(
-                properties, PROBE_FREQUENCY, DEFAULT_PROBE_FREQUENCY);
+                properties, PROBE_FREQUENCY, PROBE_FREQUENCY_DEFAULT);
         log.info("Configured. {} is configured to {} seconds",
                  PROBE_FREQUENCY, probeFrequency);
         opTimeoutShort = Tools.getIntegerProperty(
-                properties, OP_TIMEOUT_SHORT, DEFAULT_OP_TIMEOUT_SHORT);
+                properties, OP_TIMEOUT_SHORT, OP_TIMEOUT_SHORT_DEFAULT);
         log.info("Configured. {} is configured to {} seconds",
                  OP_TIMEOUT_SHORT, opTimeoutShort);
 

@@ -16,13 +16,6 @@
 package org.onosproject.openstacknetworking.impl;
 
 import com.google.common.base.Strings;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.ARP;
 import org.onlab.packet.EthType;
 import org.onlab.packet.Ethernet;
@@ -64,6 +57,12 @@ import org.openstack4j.model.network.Network;
 import org.openstack4j.model.network.NetworkType;
 import org.openstack4j.model.network.Subnet;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,13 +70,14 @@ import java.nio.ByteBuffer;
 import java.util.Dictionary;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.openstacknetworking.api.Constants.ARP_BROADCAST_MODE;
 import static org.onosproject.openstacknetworking.api.Constants.ARP_PROXY_MODE;
 import static org.onosproject.openstacknetworking.api.Constants.ARP_TABLE;
-import static org.onosproject.openstacknetworking.api.Constants.DEFAULT_ARP_MODE_STR;
-import static org.onosproject.openstacknetworking.api.Constants.DEFAULT_GATEWAY_MAC_STR;
 import static org.onosproject.openstacknetworking.api.Constants.OPENSTACK_NETWORKING_APP_ID;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_CONTROL_RULE;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_FLOOD_RULE;
@@ -85,6 +85,10 @@ import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_GAT
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_REPLY_RULE;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_ARP_REQUEST_RULE;
 import static org.onosproject.openstacknetworking.api.InstancePort.State.ACTIVE;
+import static org.onosproject.openstacknetworking.impl.OsgiPropertyConstants.ARP_MODE;
+import static org.onosproject.openstacknetworking.impl.OsgiPropertyConstants.ARP_MODE_DEFAULT;
+import static org.onosproject.openstacknetworking.impl.OsgiPropertyConstants.GATEWAY_MAC;
+import static org.onosproject.openstacknetworking.impl.OsgiPropertyConstants.GATEWAY_MAC_DEFAULT;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.getPropertyValue;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.swapStaleLocation;
 import static org.onosproject.openstacknetworking.util.RulePopulatorUtil.buildExtension;
@@ -93,60 +97,64 @@ import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.COMPUTE;
 /**
  * Handles ARP packet from VMs.
  */
-@Component(immediate = true)
+@Component(
+    immediate = true,
+    property = {
+        GATEWAY_MAC + "=" + GATEWAY_MAC_DEFAULT,
+        ARP_MODE + "=" + ARP_MODE_DEFAULT,
+    }
+)
 public final class OpenstackSwitchingArpHandler {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    private static final String GATEWAY_MAC = "gatewayMac";
-    private static final String ARP_MODE = "arpMode";
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     PacketService packetService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     OpenstackFlowRuleService osFlowRuleService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     ComponentConfigService configService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     ClusterService clusterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     LeadershipService leadershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     MastershipService mastershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     InstancePortService instancePortService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     OpenstackNetworkService osNetworkService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackNodeService osNodeService;
 
-    @Property(name = GATEWAY_MAC, value = DEFAULT_GATEWAY_MAC_STR,
-            label = "Fake MAC address for virtual network subnet gateway")
-    private String gatewayMac = DEFAULT_GATEWAY_MAC_STR;
+    /** Fake MAC address for virtual network subnet gateway. */
+    private String gatewayMac = GATEWAY_MAC_DEFAULT;
 
-    @Property(name = ARP_MODE, value = DEFAULT_ARP_MODE_STR,
-            label = "ARP processing mode, broadcast | proxy (default)")
-    protected String arpMode = DEFAULT_ARP_MODE_STR;
+    /** ARP processing mode, broadcast | proxy (default). */
+    protected String arpMode = ARP_MODE_DEFAULT;
 
     private final InternalPacketProcessor packetProcessor = new InternalPacketProcessor();
     private final InternalOpenstackNetworkListener osNetworkListener =
             new InternalOpenstackNetworkListener();
     private final InstancePortListener instancePortListener = new InternalInstancePortListener();
     private final OpenstackNodeListener osNodeListener = new InternalNodeEventListener();
+
+    private final ExecutorService eventExecutor = newSingleThreadExecutor(
+            groupedThreads(this.getClass().getSimpleName(), "event-handler", log));
 
 
     private ApplicationId appId;
@@ -175,6 +183,7 @@ public final class OpenstackSwitchingArpHandler {
         instancePortService.removeListener(instancePortListener);
         leadershipService.withdraw(appId.name());
         configService.unregisterProperties(getClass(), false);
+        eventExecutor.shutdown();
 
         log.info("Stopped");
     }
@@ -302,6 +311,9 @@ public final class OpenstackSwitchingArpHandler {
             }
 
             String gateway = osSubnet.getGateway();
+            if (gateway == null) {
+                return;
+            }
 
             TrafficSelector selector = DefaultTrafficSelector.builder()
                     .matchEthType(EthType.EtherType.ARP.ethType().toShort())
@@ -520,7 +532,7 @@ public final class OpenstackSwitchingArpHandler {
         Dictionary<?, ?> properties = context.getProperties();
 
         String updatedMac = Tools.get(properties, GATEWAY_MAC);
-        gatewayMac = updatedMac != null ? updatedMac : DEFAULT_GATEWAY_MAC_STR;
+        gatewayMac = updatedMac != null ? updatedMac : GATEWAY_MAC_DEFAULT;
         log.info("Configured. Gateway MAC is {}", gatewayMac);
     }
 
@@ -540,7 +552,8 @@ public final class OpenstackSwitchingArpHandler {
             if (ethPacket == null || ethPacket.getEtherType() != Ethernet.TYPE_ARP) {
                 return;
             }
-            processPacketIn(context, ethPacket);
+
+            eventExecutor.execute(() -> processPacketIn(context, ethPacket));
         }
     }
 
@@ -583,10 +596,14 @@ public final class OpenstackSwitchingArpHandler {
             switch (event.type()) {
                 case OPENSTACK_SUBNET_CREATED:
                 case OPENSTACK_SUBNET_UPDATED:
-                    setFakeGatewayArpRule(event.subnet(), true, null);
+                    eventExecutor.execute(() -> {
+                        setFakeGatewayArpRule(event.subnet(), true, null);
+                    });
                     break;
                 case OPENSTACK_SUBNET_REMOVED:
-                    setFakeGatewayArpRule(event.subnet(), false, null);
+                    eventExecutor.execute(() -> {
+                        setFakeGatewayArpRule(event.subnet(), false, null);
+                    });
                     break;
                 case OPENSTACK_NETWORK_CREATED:
                 case OPENSTACK_NETWORK_UPDATED:
@@ -621,12 +638,16 @@ public final class OpenstackSwitchingArpHandler {
             OpenstackNode osNode = event.subject();
             switch (event.type()) {
                 case OPENSTACK_NODE_COMPLETE:
-                    setDefaultArpRule(osNode, true);
-                    setAllArpRules(osNode, true);
+                    eventExecutor.execute(() -> {
+                        setDefaultArpRule(osNode, true);
+                        setAllArpRules(osNode, true);
+                    });
                     break;
                 case OPENSTACK_NODE_INCOMPLETE:
-                    setDefaultArpRule(osNode, false);
-                    setAllArpRules(osNode, false);
+                    eventExecutor.execute(() -> {
+                        setDefaultArpRule(osNode, false);
+                        setAllArpRules(osNode, false);
+                    });
                     break;
                 default:
                     break;
@@ -742,20 +763,28 @@ public final class OpenstackSwitchingArpHandler {
             switch (event.type()) {
                 case OPENSTACK_INSTANCE_PORT_DETECTED:
                 case OPENSTACK_INSTANCE_PORT_UPDATED:
-                    setArpRequestRule(event.subject(), true);
-                    setArpReplyRule(event.subject(), true);
+                    eventExecutor.execute(() -> {
+                        setArpRequestRule(event.subject(), true);
+                        setArpReplyRule(event.subject(), true);
+                    });
                     break;
                 case OPENSTACK_INSTANCE_PORT_VANISHED:
-                    setArpRequestRule(event.subject(), false);
-                    setArpReplyRule(event.subject(), false);
+                    eventExecutor.execute(() -> {
+                        setArpRequestRule(event.subject(), false);
+                        setArpReplyRule(event.subject(), false);
+                    });
                     break;
                 case OPENSTACK_INSTANCE_MIGRATION_STARTED:
-                    setArpRequestRule(event.subject(), true);
-                    setArpReplyRule(event.subject(), true);
+                    eventExecutor.execute(() -> {
+                        setArpRequestRule(event.subject(), true);
+                        setArpReplyRule(event.subject(), true);
+                    });
                     break;
                 case OPENSTACK_INSTANCE_MIGRATION_ENDED:
-                    InstancePort revisedInstPort = swapStaleLocation(event.subject());
-                    setArpRequestRule(revisedInstPort, false);
+                    eventExecutor.execute(() -> {
+                        InstancePort revisedInstPort = swapStaleLocation(event.subject());
+                        setArpRequestRule(revisedInstPort, false);
+                    });
                     break;
                 default:
                     break;

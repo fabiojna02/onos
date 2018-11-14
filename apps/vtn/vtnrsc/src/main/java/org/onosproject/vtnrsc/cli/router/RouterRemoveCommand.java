@@ -17,8 +17,9 @@ package org.onosproject.vtnrsc.cli.router;
 
 import java.util.Set;
 
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.vtnrsc.Router;
 import org.onosproject.vtnrsc.RouterId;
@@ -29,6 +30,7 @@ import com.google.common.collect.Sets;
 /**
  * Supports for remove a router.
  */
+@Service
 @Command(scope = "onos", name = "router-remove", description = "Supports for removing a router")
 public class RouterRemoveCommand extends AbstractShellCommand {
     @Option(name = "-i", aliases = "--id", description = "The router identifier",
@@ -40,7 +42,7 @@ public class RouterRemoveCommand extends AbstractShellCommand {
     String routerName = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         RouterService service = get(RouterService.class);
         if (id == null && routerName == null) {
             print(null, "one of id, routerName should not be null");

@@ -16,7 +16,8 @@
 
 package org.onosproject.evpnopenflow.rsc.cli;
 
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.evpnopenflow.manager.EvpnService;
 import org.onosproject.evpnopenflow.manager.impl.EvpnManager;
@@ -29,6 +30,7 @@ import static org.onosproject.evpnopenflow.rsc.EvpnConstants.FORMAT_PRIVATE_ROUT
 /**
  * Support for displaying EVPN private routes.
  */
+@Service
 @Command(scope = "onos", name = "evpn-private-routes", description = "Lists" +
         " all EVPN private routes")
 public class EvpnPrivateRouteListCommand extends AbstractShellCommand {
@@ -36,7 +38,7 @@ public class EvpnPrivateRouteListCommand extends AbstractShellCommand {
             "   VPN name            Prefix         Next Hop";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         EvpnService service = AbstractShellCommand.get(EvpnService.class);
         EvpnManager evpnManager = (EvpnManager) service;
         Collection<EvpnInstanceRoute> evpnRoutes = evpnManager.evpnInstanceRoutes;

@@ -15,14 +15,6 @@
  */
 package org.onosproject.net.group.impl;
 
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.util.Tools;
 import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.core.ApplicationId;
@@ -50,6 +42,12 @@ import org.onosproject.net.group.GroupStoreDelegate;
 import org.onosproject.net.provider.AbstractListenerProviderRegistry;
 import org.onosproject.net.provider.AbstractProviderService;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.util.Collection;
@@ -61,6 +59,7 @@ import java.util.concurrent.Executors;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static org.onlab.util.Tools.get;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.net.OsgiPropertyConstants.*;
 import static org.onosproject.security.AppGuard.checkPermission;
 import static org.onosproject.security.AppPermission.Type.GROUP_READ;
 import static org.onosproject.security.AppPermission.Type.GROUP_WRITE;
@@ -69,8 +68,17 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * Provides implementation of the group service APIs.
  */
-@Component(immediate = true)
-@Service
+@Component(
+        immediate = true,
+        service = {
+            GroupService.class,
+            GroupProviderRegistry.class
+        },
+        property = {
+            GM_POLL_FREQUENCY + ":Integer=" + GM_POLL_FREQUENCY_DEFAULT,
+            GM_PURGE_ON_DISCONNECTION + ":Boolean=" + GM_PURGE_ON_DISCONNECTION_DEFAULT
+        }
+)
 public class GroupManager
         extends AbstractListenerProviderRegistry<GroupEvent, GroupListener,
         GroupProvider, GroupProviderService>
@@ -85,30 +93,27 @@ public class GroupManager
 
     private ExecutorService eventExecutor;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected GroupStore store;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
     // Reference the DriverService to ensure the service is bound prior to initialization of the GroupDriverProvider
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DriverService driverService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected MastershipService mastershipService;
 
-    private static final int DEFAULT_POLL_FREQUENCY = 30;
-    @Property(name = "fallbackGroupPollFrequency", intValue = DEFAULT_POLL_FREQUENCY,
-            label = "Frequency (in seconds) for polling groups via fallback provider")
-    private int fallbackGroupPollFrequency = DEFAULT_POLL_FREQUENCY;
+    /** Frequency (in seconds) for polling groups via fallback provider. */
+    private int fallbackGroupPollFrequency = GM_POLL_FREQUENCY_DEFAULT;
 
-    @Property(name = "purgeOnDisconnection", boolValue = false,
-            label = "Purge entries associated with a device when the device goes offline")
-    private boolean purgeOnDisconnection = false;
+    /** Purge entries associated with a device when the device goes offline. */
+    private boolean purgeOnDisconnection = GM_PURGE_ON_DISCONNECTION_DEFAULT;
 
 
     @Activate
@@ -156,7 +161,7 @@ public class GroupManager
         Dictionary<?, ?> properties = context.getProperties();
         Boolean flag;
 
-        flag = Tools.isPropertyEnabled(properties, "purgeOnDisconnection");
+        flag = Tools.isPropertyEnabled(properties, GM_PURGE_ON_DISCONNECTION);
         if (flag == null) {
             log.info("PurgeOnDisconnection is not configured, " +
                     "using current value of {}", purgeOnDisconnection);
@@ -165,11 +170,11 @@ public class GroupManager
             log.info("Configured. PurgeOnDisconnection is {}",
                     purgeOnDisconnection ? "enabled" : "disabled");
         }
-        String s = get(properties, "fallbackGroupPollFrequency");
+        String s = get(properties, GM_POLL_FREQUENCY);
         try {
-            fallbackGroupPollFrequency = isNullOrEmpty(s) ? DEFAULT_POLL_FREQUENCY : Integer.parseInt(s);
+            fallbackGroupPollFrequency = isNullOrEmpty(s) ? GM_POLL_FREQUENCY_DEFAULT : Integer.parseInt(s);
         } catch (NumberFormatException e) {
-            fallbackGroupPollFrequency = DEFAULT_POLL_FREQUENCY;
+            fallbackGroupPollFrequency = GM_POLL_FREQUENCY_DEFAULT;
         }
     }
 

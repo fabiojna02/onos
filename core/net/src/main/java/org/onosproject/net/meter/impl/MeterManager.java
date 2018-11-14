@@ -15,14 +15,6 @@
  */
 package org.onosproject.net.meter.impl;
 
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.util.TriConsumer;
 import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.mastership.MastershipService;
@@ -30,8 +22,8 @@ import org.onosproject.net.DeviceId;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.driver.DriverService;
 import org.onosproject.net.meter.DefaultMeter;
-import org.onosproject.net.meter.MeterCellId.MeterCellType;
 import org.onosproject.net.meter.Meter;
+import org.onosproject.net.meter.MeterCellId.MeterCellType;
 import org.onosproject.net.meter.MeterEvent;
 import org.onosproject.net.meter.MeterFailReason;
 import org.onosproject.net.meter.MeterFeatures;
@@ -51,6 +43,12 @@ import org.onosproject.net.meter.MeterStoreResult;
 import org.onosproject.net.provider.AbstractListenerProviderRegistry;
 import org.onosproject.net.provider.AbstractProviderService;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.util.Collection;
@@ -64,49 +62,56 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static org.onlab.util.Tools.get;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.net.OsgiPropertyConstants.MM_FALLBACK_METER_POLL_FREQUENCY;
+import static org.onosproject.net.OsgiPropertyConstants.MM_FALLBACK_METER_POLL_FREQUENCY_DEFAULT;
+import static org.onosproject.net.OsgiPropertyConstants.MM_NUM_THREADS;
+import static org.onosproject.net.OsgiPropertyConstants.MM_NUM_THREADS_DEFAULT;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Provides implementation of the meter service APIs.
  */
-@Component(immediate = true)
-@Service
+@Component(
+    immediate = true,
+    service = {
+        MeterService.class,
+        MeterProviderRegistry.class
+    },
+    property = {
+        MM_NUM_THREADS + ":Integer=" + MM_NUM_THREADS_DEFAULT,
+        MM_FALLBACK_METER_POLL_FREQUENCY + ":Integer=" + MM_FALLBACK_METER_POLL_FREQUENCY_DEFAULT
+    }
+)
 public class MeterManager
         extends AbstractListenerProviderRegistry<MeterEvent, MeterListener, MeterProvider, MeterProviderService>
         implements MeterService, MeterProviderRegistry {
 
-    private static final String NUM_THREAD = "numThreads";
     private static final String WORKER_PATTERN = "installer-%d";
     private static final String GROUP_THREAD_NAME = "onos/meter";
-
-    private static final int DEFAULT_NUM_THREADS = 4;
-    @Property(name = NUM_THREAD,
-            intValue = DEFAULT_NUM_THREADS,
-            label = "Number of worker threads")
-    private int numThreads = DEFAULT_NUM_THREADS;
 
     private final Logger log = getLogger(getClass());
     private final MeterStoreDelegate delegate = new InternalMeterStoreDelegate();
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private MeterStore store;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DriverService driverService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected MastershipService mastershipService;
 
-    private static final int DEFAULT_POLL_FREQUENCY = 30;
-    @Property(name = "fallbackMeterPollFrequency", intValue = DEFAULT_POLL_FREQUENCY,
-            label = "Frequency (in seconds) for polling meters via fallback provider")
-    private int fallbackMeterPollFrequency = DEFAULT_POLL_FREQUENCY;
+    /** Number of worker threads. */
+    private int numThreads = MM_NUM_THREADS_DEFAULT;
+
+    /** Frequency (in seconds) for polling meters via fallback provider. */
+    private int fallbackMeterPollFrequency = MM_FALLBACK_METER_POLL_FREQUENCY_DEFAULT;
 
     private TriConsumer<MeterRequest, MeterStoreResult, Throwable> onComplete;
 
@@ -135,9 +140,9 @@ public class MeterManager
 
         };
 
+        modified(context);
         executorService = newFixedThreadPool(numThreads,
                                              groupedThreads(GROUP_THREAD_NAME, WORKER_PATTERN, log));
-        modified(context);
         log.info("Started");
     }
 
@@ -168,11 +173,19 @@ public class MeterManager
     private void readComponentConfiguration(ComponentContext context) {
         Dictionary<?, ?> properties = context.getProperties();
 
-        String s = get(properties, "fallbackMeterPollFrequency");
+        String s = get(properties, MM_FALLBACK_METER_POLL_FREQUENCY);
         try {
-            fallbackMeterPollFrequency = isNullOrEmpty(s) ? DEFAULT_POLL_FREQUENCY : Integer.parseInt(s);
+            fallbackMeterPollFrequency = isNullOrEmpty(s) ?
+                MM_FALLBACK_METER_POLL_FREQUENCY_DEFAULT : Integer.parseInt(s);
         } catch (NumberFormatException e) {
-            fallbackMeterPollFrequency = DEFAULT_POLL_FREQUENCY;
+            fallbackMeterPollFrequency = MM_FALLBACK_METER_POLL_FREQUENCY_DEFAULT;
+        }
+
+        s = get(properties, MM_NUM_THREADS);
+        try {
+            numThreads = isNullOrEmpty(s) ? MM_NUM_THREADS_DEFAULT : Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            numThreads = MM_NUM_THREADS_DEFAULT;
         }
     }
 

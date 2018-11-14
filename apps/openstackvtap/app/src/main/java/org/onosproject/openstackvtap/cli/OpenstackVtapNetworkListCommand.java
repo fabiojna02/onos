@@ -16,7 +16,8 @@
 package org.onosproject.openstackvtap.cli;
 
 import com.google.common.collect.ImmutableSet;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.DeviceId;
 import org.onosproject.openstacknode.api.OpenstackNode;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 /**
  * Lists openstack vtap networks.
  */
+@Service
 @Command(scope = "onos", name = "openstack-vtap-network-list",
         description = "OpenstackVtap network list")
 public class OpenstackVtapNetworkListCommand extends AbstractShellCommand {
@@ -42,7 +44,7 @@ public class OpenstackVtapNetworkListCommand extends AbstractShellCommand {
     private static final String FORMAT_NODES = "   openstack nodes: %s";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackVtapNetwork vtapNetwork = osVtapAdminService.getVtapNetwork();
         if (vtapNetwork != null) {
             print(FORMAT,
