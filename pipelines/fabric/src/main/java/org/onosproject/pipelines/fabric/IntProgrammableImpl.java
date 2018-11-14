@@ -16,6 +16,9 @@
 package org.onosproject.pipelines.fabric;
 
 import com.google.common.collect.Sets;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.inbandtelemetry.api.IntConfig;
@@ -80,7 +83,9 @@ public class IntProgrammableImpl extends AbstractHandlerBehaviour implements Int
             FabricConstants.FABRIC_EGRESS_PROCESS_INT_MAIN_PROCESS_INT_REPORT_TB_GENERATE_REPORT
     );
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private FlowRuleService flowRuleService;
+
     private CoreService coreService;
     private NetworkConfigService cfgService;
     private DeviceId deviceId;

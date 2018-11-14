@@ -16,8 +16,9 @@
 
 package org.onosproject.openstacktroubleshoot.cli;
 
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.cluster.NodeId;
@@ -29,6 +30,7 @@ import org.onosproject.net.device.DeviceService;
 /**
  * Re-configure mastership.
  */
+@Service
 @Command(scope = "onos", name = "openstack-reset-mastership",
         description = "Reconfigure the mastership")
 public class ResetMastershipCommand extends AbstractShellCommand {
@@ -44,7 +46,7 @@ public class ResetMastershipCommand extends AbstractShellCommand {
     private boolean isBalance = false;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         MastershipAdminService mastershipService = get(MastershipAdminService.class);
         ClusterService clusterService = get(ClusterService.class);
         DeviceService deviceService = get(DeviceService.class);

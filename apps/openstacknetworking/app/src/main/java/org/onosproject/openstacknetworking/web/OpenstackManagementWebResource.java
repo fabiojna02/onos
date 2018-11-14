@@ -48,14 +48,21 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 import static java.lang.Thread.sleep;
 import static org.onlab.util.Tools.nullIsIllegal;
-import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.*;
+import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.addRouterIface;
+import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.checkActivationFlag;
+import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.checkArpMode;
+import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.getPropertyValue;
+import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.COMPUTE;
 import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.CONTROLLER;
+import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.GATEWAY;
 
 /**
  * REST interface for synchronizing openstack network states and rules.
@@ -75,6 +82,9 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
     private static final String ARP_MODE_REQUIRED = "ARP mode is not specified";
 
     private static final String SECURITY_GROUP_FLAG_REQUIRED = "Security Group flag is not specified";
+
+    private static final String HTTP_HEADER_ACCEPT = "accept";
+    private static final String HTTP_HEADER_VALUE_JSON = "application/json";
 
     private final ObjectNode root = mapper().createObjectNode();
     private final ArrayNode floatingipsNode = root.putArray(FLOATINGIPS);
@@ -100,6 +110,9 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
     @Path("sync/states")
     public Response syncStates() {
 
+        Map<String, String> headerMap = new HashMap();
+        headerMap.put(HTTP_HEADER_ACCEPT, HTTP_HEADER_VALUE_JSON);
+
         Optional<OpenstackNode> node = osNodeAdminService.nodes(CONTROLLER).stream().findFirst();
         if (!node.isPresent()) {
             throw new ItemNotFoundException("Auth info is not found");
@@ -111,7 +124,7 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
             throw new ItemNotFoundException("Auth info is not correct");
         }
 
-        osClient.networking().securitygroup().list().forEach(osSg -> {
+        osClient.headers(headerMap).networking().securitygroup().list().forEach(osSg -> {
             if (osSgAdminService.securityGroup(osSg.getId()) != null) {
                 osSgAdminService.updateSecurityGroup(osSg);
             } else {
@@ -119,7 +132,7 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
             }
         });
 
-        osClient.networking().network().list().forEach(osNet -> {
+        osClient.headers(headerMap).networking().network().list().forEach(osNet -> {
             if (osNetAdminService.network(osNet.getId()) != null) {
                 osNetAdminService.updateNetwork(osNet);
             } else {
@@ -127,7 +140,7 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
             }
         });
 
-        osClient.networking().subnet().list().forEach(osSubnet -> {
+        osClient.headers(headerMap).networking().subnet().list().forEach(osSubnet -> {
             if (osNetAdminService.subnet(osSubnet.getId()) != null) {
                 osNetAdminService.updateSubnet(osSubnet);
             } else {
@@ -135,7 +148,7 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
             }
         });
 
-        osClient.networking().port().list().forEach(osPort -> {
+        osClient.headers(headerMap).networking().port().list().forEach(osPort -> {
             if (osNetAdminService.port(osPort.getId()) != null) {
                 osNetAdminService.updatePort(osPort);
             } else {
@@ -143,7 +156,7 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
             }
         });
 
-        osClient.networking().router().list().forEach(osRouter -> {
+        osClient.headers(headerMap).networking().router().list().forEach(osRouter -> {
             if (osRouterAdminService.router(osRouter.getId()) != null) {
                 osRouterAdminService.updateRouter(osRouter);
             } else {
@@ -156,7 +169,7 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
                     .forEach(osPort -> addRouterIface(osPort, osRouterAdminService));
         });
 
-        osClient.networking().floatingip().list().forEach(osFloating -> {
+        osClient.headers(headerMap).networking().floatingip().list().forEach(osFloating -> {
             if (osRouterAdminService.floatingIp(osFloating.getId()) != null) {
                 osRouterAdminService.updateFloatingIp(osFloating);
             } else {
@@ -317,22 +330,27 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
     }
 
     private void syncRulesBase() {
-        osNodeAdminService.completeNodes().forEach(osNode -> {
-            OpenstackNode updated = osNode.updateState(NodeState.INIT);
-            osNodeAdminService.updateNode(updated);
+        // we first initialize the COMPUTE node, in order to feed all instance ports
+        // by referring to ports' information obtained from neutron server
+        osNodeAdminService.completeNodes(COMPUTE).forEach(this::syncRulesBaseForNode);
+        osNodeAdminService.completeNodes(GATEWAY).forEach(this::syncRulesBaseForNode);
+    }
 
-            try {
-                sleep(SLEEP_MS);
-            } catch (InterruptedException e) {
-                log.error("Exception caused during node synchronization...");
-            }
+    private void syncRulesBaseForNode(OpenstackNode osNode) {
+        OpenstackNode updated = osNode.updateState(NodeState.INIT);
+        osNodeAdminService.updateNode(updated);
 
-            if (osNodeAdminService.node(osNode.hostname()).state() == NodeState.COMPLETE) {
-                log.info("Finished sync rules for node {}", osNode.hostname());
-            } else {
-                log.info("Failed to sync rules for node {}", osNode.hostname());
-            }
-        });
+        try {
+            sleep(SLEEP_MS);
+        } catch (InterruptedException e) {
+            log.error("Exception caused during node synchronization...");
+        }
+
+        if (osNodeAdminService.node(osNode.hostname()).state() == NodeState.COMPLETE) {
+            log.info("Finished sync rules for node {}", osNode.hostname());
+        } else {
+            log.info("Failed to sync rules for node {}", osNode.hostname());
+        }
     }
 
     private void purgeRulesBase() {

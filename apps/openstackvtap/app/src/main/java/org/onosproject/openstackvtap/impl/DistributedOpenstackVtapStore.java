@@ -18,12 +18,6 @@ package org.onosproject.openstackvtap.impl;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.DeviceId;
@@ -44,6 +38,11 @@ import org.onosproject.store.service.MapEventListener;
 import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.Versioned;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.util.Comparator;
@@ -64,15 +63,14 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * Manages the inventory of openstack vtap and openstack vtap network using a {@code ConsistentMap}.
  */
-@Component(immediate = true)
-@Service
+@Component(immediate = true, service = OpenstackVtapStore.class)
 public class DistributedOpenstackVtapStore
         extends AbstractStore<OpenstackVtapEvent, OpenstackVtapStoreDelegate>
         implements OpenstackVtapStore {
 
     private final Logger log = getLogger(getClass());
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected StorageService storageService;
 
     private ConsistentMap<OpenstackVtapId, DefaultOpenstackVtap> vtapConsistentMap;

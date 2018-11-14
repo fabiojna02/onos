@@ -15,26 +15,30 @@
  */
 package org.onosproject.openstackvtap.web;
 
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
+
+
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.codec.CodecService;
 import org.onosproject.openstackvtap.api.OpenstackVtapNetwork;
 import org.onosproject.openstackvtap.codec.OpenstackVtapNetworkCodec;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Implementation of the JSON codec brokering service for openstack vtap network.
  */
+@Service
 @Component(immediate = true)
 public class OpenstackVtapNetworkCodecRegister {
 
     private final org.slf4j.Logger log = getLogger(getClass());
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CodecService codecService;
 
     @Activate

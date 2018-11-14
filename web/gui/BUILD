@@ -28,17 +28,14 @@
     the sandbox at the proper locations and then returned as a tar ball.
 """
 
-COMPILE_DEPS = CORE_DEPS + JACKSON + KRYO + [
+COMPILE_DEPS = CORE_DEPS + JACKSON + KRYO + CLI + [
     "@javax_ws_rs_api//jar",
     "@servlet_api//jar",
     "@jetty_websocket//jar",
+    "@jetty_websocket_api//jar",
     "@jetty_util//jar",
     "@jersey_media_multipart//jar",
-    "@org_apache_karaf_shell_console//jar",
     "@jersey_server//jar",
-    "//cli:onos-cli",
-    "//incubator/api:onos-incubator-api",
-    "//incubator/net:onos-incubator-net",
     "//utils/rest:onlab-rest",
     "//core/store/serializers:onos-core-serializers",
 ]
@@ -195,10 +192,14 @@ genrule(
 """
 
 osgi_jar_with_tests(
-    name = "_onos-gui-base-jar",
+    name = "onos-gui-jar",
     exclude_tests = [
         "org.onosproject.ui.impl.AbstractUiImplTest",
         "org.onosproject.ui.impl.topo.model.AbstractTopoModelTest",
+    ],
+    karaf_command_packages = [
+        "org.onosproject.ui.impl.cli",
+        "org.onosproject.ui.impl.topo",
     ],
     test_deps = TEST_DEPS,
     web_context = "/onos/ui",
@@ -224,7 +225,7 @@ genrule(
     name = "onos-gui",
     srcs = [
         ":_onos-gui-npm-build",
-        ":_onos-gui-base-jar",
+        ":onos-gui-jar",
         ":_root_level_files",
         ":_web_inf_classes_files",
         ":_raw_classes_files",
@@ -240,7 +241,7 @@ genrule(
           " for i in $(locations :_web_inf_classes_files); do cp $$ROOT/$$i ./WEB-INF/classes/; done &&" +
           " mkdir ./WEB-INF/classes/raw && " +
           " for i in $(locations :_raw_classes_files); do cp $$ROOT/$$i ./WEB-INF/classes/raw/; done &&" +
-          " jar xf $$ROOT/$(location :_onos-gui-base-jar) &&" +
+          " jar xf $$ROOT/$(location :onos-gui-jar) &&" +
           " find . -type f -exec touch -t 201806280000 {} \; &&" +
           " jar cmf META-INF/MANIFEST.MF $$ROOT/$@ .",
     output_to_bindir = 1,

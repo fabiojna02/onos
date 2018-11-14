@@ -17,8 +17,8 @@
 package org.onosproject.cli.net;
 
 
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.driver.Behaviour;
 import org.onosproject.net.pi.model.PiPipeconf;
@@ -43,7 +43,7 @@ public class PipeconfCommand extends AbstractShellCommand {
     private boolean shortOutput = false;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         piPipeconfService = get(PiPipeconfService.class);
 
         for (PiPipeconf piPipeconf : piPipeconfService.getPipeconfs()) {

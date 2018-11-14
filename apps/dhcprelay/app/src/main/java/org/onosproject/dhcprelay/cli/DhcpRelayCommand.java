@@ -17,8 +17,10 @@
 package org.onosproject.dhcprelay.cli;
 
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
@@ -41,16 +43,19 @@ import java.util.Map;
 /**
  * Prints DHCP server and DHCP relay status.
  */
+@Service
 @Command(scope = "onos", name = "dhcp-relay", description = "DHCP relay app cli.")
 public class DhcpRelayCommand extends AbstractShellCommand {
     @Argument(index = 0, name = "counter",
             description = "shows counter values",
             required = false, multiValued = false)
+    @Completion(DhcpRelayCounterCompleter.class)
     String counter = null;
 
     @Argument(index = 1, name = "reset",
             description = "reset counters or not",
             required = false, multiValued = false)
+    @Completion(DhcpRelayResetCompleter.class)
     String reset = null;
 
 
@@ -80,7 +85,7 @@ public class DhcpRelayCommand extends AbstractShellCommand {
 
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         List<DhcpServerInfo> defaultDhcpServerInfoList = DHCP_RELAY_SERVICE.getDefaultDhcpServerInfoList();
         List<DhcpServerInfo> indirectDhcpServerInfoList = DHCP_RELAY_SERVICE.getIndirectDhcpServerInfoList();
 
@@ -194,7 +199,13 @@ public class DhcpRelayCommand extends AbstractShellCommand {
         });
     }
 
-    private String ip4State(DhcpRecord record) {
+    /**
+     * To return ipv4state.
+     *
+     * @param record DhcpRecord object
+     * @return ipState type String
+     */
+    public String ip4State(DhcpRecord record) {
         String nextHopIp = findNextHopIp(IpAddress::isIp4,
                                          record.nextHop().orElse(null),
                                          record.vlanId());
@@ -204,7 +215,14 @@ public class DhcpRelayCommand extends AbstractShellCommand {
                        nextHopIp);
     }
 
-    private String ip6State(DhcpRecord record) {
+    /**
+     * To return ipv6state.
+     *
+     * @param record DhcpRecord object
+     * @return ipState type String
+     */
+
+    public String ip6State(DhcpRecord record) {
         String nextHopIp = findNextHopIp6(IpAddress::isIp6,
                                          record.nextHop().orElse(null),
                                          record.vlanId());

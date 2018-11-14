@@ -16,14 +16,6 @@
 
 package org.onosproject.netconf.ctl.impl;
 
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.onlab.packet.IpAddress;
 import org.onosproject.cfg.ComponentConfigService;
@@ -47,6 +39,12 @@ import org.onosproject.netconf.NetconfException;
 import org.onosproject.netconf.config.NetconfDeviceConfig;
 import org.onosproject.netconf.config.NetconfSshClientLib;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,51 +61,44 @@ import java.util.concurrent.Executors;
 import static org.onlab.util.Tools.get;
 import static org.onlab.util.Tools.getIntegerProperty;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.netconf.ctl.impl.OsgiPropertyConstants.*;
 
 /**
  * The implementation of NetconfController.
  */
-@Component(immediate = true)
-@Service
+@Component(immediate = true, service = NetconfController.class,
+        property = {
+                NETCONF_CONNECT_TIMEOUT + ":Integer=" + NETCONF_CONNECT_TIMEOUT_DEFAULT,
+                NETCONF_REPLY_TIMEOUT + ":Integer=" + NETCONF_REPLY_TIMEOUT_DEFAULT,
+                NETCONF_IDLE_TIMEOUT + ":Integer=" + NETCONF_IDLE_TIMEOUT_DEFAULT,
+                SSH_LIBRARY + "=" + SSH_LIBRARY_DEFAULT,
+        })
 public class NetconfControllerImpl implements NetconfController {
 
-    protected static final int DEFAULT_CONNECT_TIMEOUT_SECONDS = 5;
-    private static final String PROP_NETCONF_CONNECT_TIMEOUT = "netconfConnectTimeout";
-    // FIXME @Property should not be static
-    @Property(name = PROP_NETCONF_CONNECT_TIMEOUT, intValue = DEFAULT_CONNECT_TIMEOUT_SECONDS,
-            label = "Time (in seconds) to wait for a NETCONF connect.")
-    protected static int netconfConnectTimeout = DEFAULT_CONNECT_TIMEOUT_SECONDS;
+    /** Time (in seconds) to wait for a NETCONF connect. */
+    protected static int netconfConnectTimeout = NETCONF_CONNECT_TIMEOUT_DEFAULT;
 
-    private static final String PROP_NETCONF_REPLY_TIMEOUT = "netconfReplyTimeout";
-    protected static final int DEFAULT_REPLY_TIMEOUT_SECONDS = 5;
-    // FIXME @Property should not be static
-    @Property(name = PROP_NETCONF_REPLY_TIMEOUT, intValue = DEFAULT_REPLY_TIMEOUT_SECONDS,
-            label = "Time (in seconds) waiting for a NetConf reply")
-    protected static int netconfReplyTimeout = DEFAULT_REPLY_TIMEOUT_SECONDS;
+    /** Time (in seconds) waiting for a NetConf reply. */
+    protected static int netconfReplyTimeout = NETCONF_REPLY_TIMEOUT_DEFAULT;
 
-    private static final String PROP_NETCONF_IDLE_TIMEOUT = "netconfIdleTimeout";
-    protected static final int DEFAULT_IDLE_TIMEOUT_SECONDS = 300;
-    // FIXME @Property should not be static
-    @Property(name = PROP_NETCONF_IDLE_TIMEOUT, intValue = DEFAULT_IDLE_TIMEOUT_SECONDS,
-            label = "Time (in seconds) SSH session will close if no traffic seen")
-    protected static int netconfIdleTimeout = DEFAULT_IDLE_TIMEOUT_SECONDS;
+    /** Time (in seconds) SSH session will close if no traffic seen. */
+    protected static int netconfIdleTimeout = NETCONF_IDLE_TIMEOUT_DEFAULT;
 
-    private static final String SSH_LIBRARY = "sshLibrary";
-    private static final String APACHE_MINA_STR = "apache-mina";
-    @Property(name = SSH_LIBRARY, value = APACHE_MINA_STR,
-            label = "Ssh client library to use")
-    protected NetconfSshClientLib sshLibrary = NetconfSshClientLib.APACHE_MINA;
+    /** SSH client library to use. */
+    protected static String sshLibrary = SSH_LIBRARY_DEFAULT;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected NetconfSshClientLib sshClientLib = NetconfSshClientLib.APACHE_MINA;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceKeyService deviceKeyService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetworkConfigRegistry netCfgService;
 
     public static final Logger log = LoggerFactory
@@ -118,7 +109,7 @@ public class NetconfControllerImpl implements NetconfController {
     private final NetconfDeviceOutputEventListener downListener = new DeviceDownEventListener();
 
     protected Set<NetconfDeviceListener> netconfDeviceListeners = new CopyOnWriteArraySet<>();
-    protected NetconfDeviceFactory deviceFactory = (deviceInfo) -> new DefaultNetconfDevice(deviceInfo);
+    protected NetconfDeviceFactory deviceFactory = DefaultNetconfDevice::new;
 
     protected final ExecutorService executor =
             Executors.newCachedThreadPool(groupedThreads("onos/netconfdevicecontroller",
@@ -148,10 +139,11 @@ public class NetconfControllerImpl implements NetconfController {
     @Modified
     public void modified(ComponentContext context) {
         if (context == null) {
-            netconfReplyTimeout = DEFAULT_REPLY_TIMEOUT_SECONDS;
-            netconfConnectTimeout = DEFAULT_CONNECT_TIMEOUT_SECONDS;
-            netconfIdleTimeout = DEFAULT_IDLE_TIMEOUT_SECONDS;
-            sshLibrary = NetconfSshClientLib.APACHE_MINA;
+            netconfReplyTimeout = NETCONF_REPLY_TIMEOUT_DEFAULT;
+            netconfConnectTimeout = NETCONF_CONNECT_TIMEOUT_DEFAULT;
+            netconfIdleTimeout = NETCONF_IDLE_TIMEOUT_DEFAULT;
+            sshLibrary = SSH_LIBRARY_DEFAULT;
+            sshClientLib = NetconfSshClientLib.APACHE_MINA;
             log.info("No component configuration");
             return;
         }
@@ -161,11 +153,11 @@ public class NetconfControllerImpl implements NetconfController {
         String newSshLibrary;
 
         int newNetconfReplyTimeout = getIntegerProperty(
-                properties, PROP_NETCONF_REPLY_TIMEOUT, netconfReplyTimeout);
+                properties, NETCONF_REPLY_TIMEOUT, netconfReplyTimeout);
         int newNetconfConnectTimeout = getIntegerProperty(
-                properties, PROP_NETCONF_CONNECT_TIMEOUT, netconfConnectTimeout);
+                properties, NETCONF_CONNECT_TIMEOUT, netconfConnectTimeout);
         int newNetconfIdleTimeout = getIntegerProperty(
-                properties, PROP_NETCONF_IDLE_TIMEOUT, netconfIdleTimeout);
+                properties, NETCONF_IDLE_TIMEOUT, netconfIdleTimeout);
 
         newSshLibrary = get(properties, SSH_LIBRARY);
 
@@ -184,12 +176,13 @@ public class NetconfControllerImpl implements NetconfController {
         netconfConnectTimeout = newNetconfConnectTimeout;
         netconfIdleTimeout = newNetconfIdleTimeout;
         if (newSshLibrary != null) {
-            sshLibrary = NetconfSshClientLib.getEnum(newSshLibrary);
+            sshLibrary = newSshLibrary;
+            sshClientLib = NetconfSshClientLib.getEnum(newSshLibrary);
         }
         log.info("Settings: {} = {}, {} = {}, {} = {}, {} = {}",
-                 PROP_NETCONF_REPLY_TIMEOUT, netconfReplyTimeout,
-                 PROP_NETCONF_CONNECT_TIMEOUT, netconfConnectTimeout,
-                 PROP_NETCONF_IDLE_TIMEOUT, netconfIdleTimeout,
+                 NETCONF_REPLY_TIMEOUT, netconfReplyTimeout,
+                 NETCONF_CONNECT_TIMEOUT, netconfConnectTimeout,
+                 NETCONF_IDLE_TIMEOUT, netconfIdleTimeout,
                  SSH_LIBRARY, sshLibrary);
     }
 

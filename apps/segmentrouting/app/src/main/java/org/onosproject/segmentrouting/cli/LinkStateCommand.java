@@ -20,7 +20,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Link;
@@ -34,13 +35,14 @@ import com.google.common.collect.Lists;
  * Command to read the current state of the DestinationSetNextObjectiveStore.
  *
  */
+@Service
 @Command(scope = "onos", name = "sr-link-state", description = "Displays the current internal link state "
         + "noted by this instance of the controller")
 public class LinkStateCommand extends AbstractShellCommand {
     private static final String FORMAT_MAPPING = "  %s";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         SegmentRoutingService srService = AbstractShellCommand
                 .get(SegmentRoutingService.class);
         printLinkState(srService.getSeenLinks(),

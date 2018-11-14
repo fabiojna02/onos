@@ -18,14 +18,6 @@ package org.onosproject.openflow.controller.impl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.DeviceId;
@@ -48,6 +40,12 @@ import org.onosproject.openflow.controller.PacketListener;
 import org.onosproject.openflow.controller.RoleState;
 import org.onosproject.openflow.controller.driver.OpenFlowAgent;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.projectfloodlight.openflow.protocol.OFCalientFlowStatsEntry;
 import org.projectfloodlight.openflow.protocol.OFCalientFlowStatsReply;
 import org.projectfloodlight.openflow.protocol.OFCircuitPortStatus;
@@ -93,57 +91,59 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.openflow.controller.impl.OsgiPropertyConstants.*;
 
-
-@Component(immediate = true)
-@Service
+@Component(
+        immediate = true,
+        service = OpenFlowController.class,
+        property = {
+                OFPORTS + "=" + OFPORTS_DEFAULT,
+                WORKER_THREADS + ":Integer=" + WORKER_THREADS_DEFAULT,
+                TLS_MODE + "=" + TLS_MODE_DEFAULT,
+                KEY_STORE + "=" + KEY_STORE_DEFAULT,
+                KEY_STORE_PASSWORD + "=" + KEY_STORE_PASSWORD_DEFAULT,
+                TRUST_STORE + "=" + TRUST_STORE_DEFAULT,
+                TRUST_STORE_PASSWORD + "=" + TRUST_STORE_PASSWORD_DEFAULT,
+        }
+)
 public class OpenFlowControllerImpl implements OpenFlowController {
     private static final String APP_ID = "org.onosproject.openflow-base";
-    private static final String DEFAULT_OFPORT = "6633,6653";
-    private static final int DEFAULT_WORKER_THREADS = 0;
     protected static final String SCHEME = "of";
 
     private static final Logger log =
             LoggerFactory.getLogger(OpenFlowControllerImpl.class);
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DriverService driverService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetworkConfigRegistry netCfgService;
 
-    @Property(name = "openflowPorts", value = DEFAULT_OFPORT,
-            label = "Port numbers (comma separated) used by OpenFlow protocol; default is 6633,6653")
-    private String openflowPorts = DEFAULT_OFPORT;
+    /** Port numbers (comma separated) used by OpenFlow protocol; default is 6633,6653. */
+    private String openflowPortsValue = OFPORTS_DEFAULT;
 
-    @Property(name = "workerThreads", intValue = DEFAULT_WORKER_THREADS,
-            label = "Number of controller worker threads")
-    private int workerThreads = DEFAULT_WORKER_THREADS;
+    /** Number of controller worker threads. */
+    private int workerThreads = WORKER_THREADS_DEFAULT;
 
-    @Property(name = "tlsMode", value = "",
-              label = "TLS mode for OpenFlow channel; options are: disabled [default], enabled, strict")
+      /** TLS mode for OpenFlow channel; options are: disabled [default], enabled, strict. */
     private String tlsModeString;
 
-    @Property(name = "keyStore", value = "",
-            label = "File path to key store for TLS connections")
+    /** File path to key store for TLS connections. */
     private String keyStore;
 
-    @Property(name = "keyStorePassword", value = "",
-            label = "Key store password")
+    /** Key store password. */
     private String keyStorePassword;
 
-    @Property(name = "trustStore", value = "",
-            label = "File path to trust store for TLS connections")
+    /** File path to trust store for TLS connections. */
     private String trustStore;
 
-    @Property(name = "trustStorePassword", value = "",
-            label = "Trust store password")
+    /** Trust store password. */
     private String trustStorePassword;
 
     protected ExecutorService executorMsgs =

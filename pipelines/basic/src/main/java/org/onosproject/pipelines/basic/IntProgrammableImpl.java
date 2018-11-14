@@ -17,8 +17,8 @@ package org.onosproject.pipelines.basic;
 
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Sets;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.onlab.util.ImmutableByteSequence;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
@@ -82,10 +82,10 @@ public class IntProgrammableImpl extends AbstractHandlerBehaviour implements Int
             IntConstants.TBL_INT_SOURCE_ID,
             IntConstants.TBL_GENERATE_REPORT_ID);
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private FlowRuleService flowRuleService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private CoreService coreService;
 
     private DeviceId deviceId;

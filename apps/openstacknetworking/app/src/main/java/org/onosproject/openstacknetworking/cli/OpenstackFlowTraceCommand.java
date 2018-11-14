@@ -15,8 +15,9 @@
  */
 package org.onosproject.openstacknetworking.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.openstacknetworking.api.InstancePort;
 import org.onosproject.openstacknetworking.api.InstancePortAdminService;
@@ -32,6 +33,7 @@ import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.t
 /**
  * Requests flow trace command.
  */
+@Service
 @Command(scope = "onos", name = "openstack-flow-trace",
         description = "Requests flow trace command")
 public class OpenstackFlowTraceCommand extends AbstractShellCommand {
@@ -50,7 +52,7 @@ public class OpenstackFlowTraceCommand extends AbstractShellCommand {
 
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackNodeAdminService osNodeService = AbstractShellCommand.get(OpenstackNodeAdminService.class);
         InstancePortAdminService instancePortService = AbstractShellCommand.get(InstancePortAdminService.class);
         OpenstackNetworkAdminService osNetService = AbstractShellCommand.get(OpenstackNetworkAdminService.class);

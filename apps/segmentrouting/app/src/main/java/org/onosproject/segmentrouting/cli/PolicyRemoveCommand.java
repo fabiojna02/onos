@@ -16,8 +16,9 @@
 package org.onosproject.segmentrouting.cli;
 
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.segmentrouting.PolicyHandler;
 import org.onosproject.segmentrouting.SegmentRoutingService;
@@ -26,6 +27,7 @@ import org.onosproject.segmentrouting.TunnelPolicy;
 /**
  * Command to remove a policy.
  */
+@Service
 @Command(scope = "onos", name = "sr-policy-remove",
         description = "Remove a policy")
 public class PolicyRemoveCommand extends AbstractShellCommand {
@@ -36,7 +38,7 @@ public class PolicyRemoveCommand extends AbstractShellCommand {
     String policyId;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
 
         SegmentRoutingService srService =
                 AbstractShellCommand.get(SegmentRoutingService.class);

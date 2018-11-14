@@ -1,11 +1,14 @@
 COMPILE_DEPS = CORE_DEPS + JACKSON + KRYO + REST + CLI + [
     "@jersey_client//jar",
-    "//incubator/api:onos-incubator-api",
     "//core/store/serializers:onos-core-serializers",
 ]
 
 osgi_jar_with_tests(
     exclude_tests = ["org.onosproject.vpls.VplsTest"],
+    karaf_command_packages = [
+        "org.onosproject.vpls.cli",
+        "org.onosproject.vpls.cli.completer",
+    ],
     test_deps = TEST_ADAPTERS,
     deps = COMPILE_DEPS,
 )

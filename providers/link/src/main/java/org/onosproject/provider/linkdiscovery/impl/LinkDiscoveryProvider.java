@@ -16,13 +16,6 @@
 
 package org.onosproject.provider.linkdiscovery.impl;
 
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
@@ -45,6 +38,12 @@ import org.onosproject.net.link.LinkService;
 import org.onosproject.net.provider.AbstractProvider;
 import org.onosproject.net.provider.ProviderId;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.util.Dictionary;
@@ -59,13 +58,18 @@ import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.onlab.util.Tools.get;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.provider.linkdiscovery.impl.OsgiPropertyConstants.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Link provider capable of polling the environment using the device driver
  * {@link LinkDiscovery} behaviour.
  */
-@Component(immediate = true)
+@Component(immediate = true,
+        property = {
+                POLL_DELAY_SECONDS + ":Integer=" + POLL_DELAY_SECONDS_DEFAULT,
+                POLL_FREQUENCY_SECONDS + ":Integer=" + POLL_FREQUENCY_SECONDS_DEFAULT,
+        })
 public class LinkDiscoveryProvider extends AbstractProvider
         implements LinkProvider {
 
@@ -73,30 +77,28 @@ public class LinkDiscoveryProvider extends AbstractProvider
     protected static final String SCHEME_NAME = "linkdiscovery";
     private static final String LINK_PROVIDER_PACKAGE = "org.onosproject.provider.linkdiscovery";
     private final Logger log = getLogger(getClass());
-    private static final int DEFAULT_POLL_DELAY_SECONDS = 20;
-    @Property(name = "linkPollDelaySeconds", intValue = DEFAULT_POLL_DELAY_SECONDS,
-            label = "Initial delay (in seconds) for polling link discovery")
-    protected static int linkPollDelaySeconds = DEFAULT_POLL_DELAY_SECONDS;
-    private static final int DEFAULT_POLL_FREQUENCY_SECONDS = 10;
-    @Property(name = "linkPollFrequencySeconds", intValue = DEFAULT_POLL_FREQUENCY_SECONDS,
-            label = "Frequency (in seconds) for polling link discovery")
-    protected static int linkPollFrequencySeconds = DEFAULT_POLL_FREQUENCY_SECONDS;
+
+    /** Initial delay (in seconds) for polling link discovery. */
+    protected static int linkPollDelaySeconds = POLL_DELAY_SECONDS_DEFAULT;
+
+    /** Frequency (in seconds) for polling link discovery. */
+    protected static int linkPollFrequencySeconds = POLL_FREQUENCY_SECONDS_DEFAULT;
 
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected LinkProviderRegistry providerRegistry;
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected LinkService linkService;
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected MastershipService mastershipService;
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
     protected ScheduledExecutorService executor =
             newScheduledThreadPool(2, groupedThreads("onos/netconf-link",
                                                      "discovery-%d"));
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
     protected LinkProviderService providerService;
@@ -119,7 +121,7 @@ public class LinkDiscoveryProvider extends AbstractProvider
         cfgService.registerProperties(getClass());
 
         if (context == null) {
-            linkPollFrequencySeconds = DEFAULT_POLL_FREQUENCY_SECONDS;
+            linkPollFrequencySeconds = POLL_FREQUENCY_SECONDS_DEFAULT;
             log.info("No component configuration");
         } else {
             Dictionary<?, ?> properties = context.getProperties();
@@ -167,10 +169,10 @@ public class LinkDiscoveryProvider extends AbstractProvider
     private int getNewPollFrequency(Dictionary<?, ?> properties, int pollFrequency) {
         int newPollFrequency;
         try {
-            String s = get(properties, "linkPollFrequencySeconds");
+            String s = get(properties, POLL_FREQUENCY_SECONDS);
             newPollFrequency = isNullOrEmpty(s) ? pollFrequency : Integer.parseInt(s.trim());
         } catch (NumberFormatException | ClassCastException e) {
-            newPollFrequency = DEFAULT_POLL_FREQUENCY_SECONDS;
+            newPollFrequency = POLL_FREQUENCY_SECONDS_DEFAULT;
         }
         return newPollFrequency;
     }
@@ -178,10 +180,10 @@ public class LinkDiscoveryProvider extends AbstractProvider
     private int getNewPollDealy(Dictionary<?, ?> properties, int pollDelay) {
         int newPollFrequency;
         try {
-            String s = get(properties, "linkPollDelaySeconds");
+            String s = get(properties, POLL_DELAY_SECONDS);
             newPollFrequency = isNullOrEmpty(s) ? pollDelay : Integer.parseInt(s.trim());
         } catch (NumberFormatException | ClassCastException e) {
-            newPollFrequency = DEFAULT_POLL_DELAY_SECONDS;
+            newPollFrequency = POLL_DELAY_SECONDS_DEFAULT;
         }
         return newPollFrequency;
     }

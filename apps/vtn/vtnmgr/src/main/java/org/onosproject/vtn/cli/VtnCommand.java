@@ -15,14 +15,16 @@
  */
 package org.onosproject.vtn.cli;
 
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.vtn.manager.impl.VtnManager;
 
 /**
  * Supports for updating the external gateway virtualPort.
  */
+@Service
 @Command(scope = "onos", name = "externalportname-set",
         description = "Supports for setting the external port name.")
 public class VtnCommand extends AbstractShellCommand {
@@ -32,7 +34,7 @@ public class VtnCommand extends AbstractShellCommand {
     String exPortName = "";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         VtnManager.setExPortName(exPortName);
     }
 }

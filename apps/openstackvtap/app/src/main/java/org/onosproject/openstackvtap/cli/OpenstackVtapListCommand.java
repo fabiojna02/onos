@@ -16,8 +16,9 @@
 package org.onosproject.openstackvtap.cli;
 
 import com.google.common.collect.ImmutableSet;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.DeviceId;
 import org.onosproject.openstacknode.api.OpenstackNode;
@@ -34,6 +35,7 @@ import static org.onosproject.openstackvtap.util.OpenstackVtapUtil.getVtapTypeFr
 /**
  * Lists openstack vtap rules.
  */
+@Service
 @Command(scope = "onos", name = "openstack-vtap-list",
         description = "OpenstackVtap list")
 public class OpenstackVtapListCommand extends AbstractShellCommand {
@@ -51,7 +53,7 @@ public class OpenstackVtapListCommand extends AbstractShellCommand {
     private static final String FORMAT_RX_NODES = "   rx openstack nodes: %s";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackVtap.Type type = getVtapTypeFromString(vtapType);
         Set<OpenstackVtap> openstackVtaps = vtapService.getVtaps(type);
         for (OpenstackVtap vtap : openstackVtaps) {

@@ -16,7 +16,7 @@
 
 package org.onosproject.odtn.cli.impl;
 
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
 import org.onlab.util.XmlString;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.config.DynamicConfigService;
@@ -70,7 +70,7 @@ public class OdtnTapiHandlersTestCommand extends AbstractShellCommand {
     private TapiContextHandler contextHandler;
 
     @Override
-    public void execute() {
+    public void doExecute() {
         dcs = get(DynamicConfigService.class);
         modelConverter = get(ModelConverter.class);
 

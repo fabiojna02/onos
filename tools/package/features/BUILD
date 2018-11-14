@@ -1,5 +1,5 @@
 load("//tools/build/bazel:osgi_features.bzl", "osgi_feature", "osgi_feature_repo")
-load("//:modules.bzl", "FEATURES")
+load("//tools/build/bazel:modules.bzl", "FEATURES")
 
 osgi_feature_repo(
     name = "onos-features",
@@ -14,6 +14,7 @@ osgi_feature(
         "@commons_lang//jar",
         "@commons_lang3//jar",
         "@commons_text//jar",
+        "@commons_codec//jar",
         "@commons_configuration//jar",
         "@com_google_guava_guava//jar",
         "@io_netty_netty//jar",
@@ -45,10 +46,11 @@ osgi_feature(
         "@mapdb//jar",
         "@bcpkix_jdk15on//jar",
         "@bcprov_jdk15on//jar",
-        "@commons_jxpath//jar",
         "@commons_beanutils//jar",
         "@jdom//jar",
         "@sigar//jar",
+        "@org_osgi_util_function//jar",
+        "@org_osgi_util_promise//jar",
     ],
     required_features = [],
     visibility = ["//visibility:public"],
@@ -92,7 +94,6 @@ osgi_feature(
         "//utils/osgi:onlab-osgi",
         "//utils/rest:onlab-rest",
         "//core/api:onos-api",
-        "//incubator/api:onos-incubator-api",
     ],
     required_features = [
         "scr",
@@ -118,27 +119,13 @@ osgi_feature(
 )
 
 osgi_feature(
-    name = "onos-incubator",
-    description = "ONOS core incubator components",
-    included_bundles = [
-        "//incubator/net:onos-incubator-net",
-        "//incubator/store:onos-incubator-store",
-        "//incubator/rpc:onos-incubator-rpc",
-    ],
-    required_features = ["onos-core"],
-    visibility = ["//visibility:public"],
-)
-
-osgi_feature(
     name = "onos-rest",
     description = "ONOS REST API components",
     included_bundles = [
-        "//utils/rest:onlab-rest",
         "//web/api:onos-rest",
     ],
     required_features = [
         "onos-api",
-        "onos-thirdparty-web",
     ],
     visibility = ["//visibility:public"],
 )
@@ -158,12 +145,9 @@ osgi_feature(
     description = "ONOS GUI console components",
     included_bundles = [
         "//web/gui:onos-gui",
-        "@jetty_websocket//jar",
-        "//utils/rest:onlab-rest",
     ],
     required_features = [
         "onos-api",
-        "onos-thirdparty-web",
     ],
     visibility = ["//visibility:public"],
 )
@@ -173,23 +157,20 @@ osgi_feature(
     description = "ONOS GUI2 components",
     included_bundles = [
         "//web/gui2:onos-gui2",
-        "@jetty_websocket//jar",
-        "//utils/rest:onlab-rest",
     ],
     required_features = [
         "onos-api",
-        "onos-thirdparty-web",
     ],
     visibility = ["//visibility:public"],
 )
 
-osgi_feature(
-    name = "onos-security",
-    description = "Security-Mode ONOS",
-    included_bundles = [
-        "@org_apache_felix_framework_security//jar",
-        "//core/security:onos-security",
-    ],
-    required_features = ["onos-api"],
-    visibility = ["//visibility:public"],
-)
+#osgi_feature(
+#    name = "onos-security",
+#    description = "Security-Mode ONOS",
+#    included_bundles = [
+#        "@org_apache_felix_framework_security//jar",
+#        "//core/security:onos-security",
+#    ],
+#    required_features = ["onos-api"],
+#    visibility = ["//visibility:public"],
+#)

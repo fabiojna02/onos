@@ -17,8 +17,9 @@ package org.onosproject.vtnrsc.cli.virtualport;
 
 import java.util.Collection;
 
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.DeviceId;
 import org.onosproject.vtnrsc.TenantNetworkId;
@@ -29,6 +30,7 @@ import org.onosproject.vtnrsc.virtualport.VirtualPortService;
 /**
  * Supports for querying virtualPorts.
  */
+@Service
 @Command(scope = "onos", name = "virtualports", description = "Supports for querying virtualPorts.")
 public class VirtualPortQueryCommand extends AbstractShellCommand {
 
@@ -55,7 +57,7 @@ public class VirtualPortQueryCommand extends AbstractShellCommand {
             + " allowedAddress=%s, securityGroups=%s";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         VirtualPortService service = get(VirtualPortService.class);
         if (vPortId != null && networkId == null && deviceId == null && tenantId == null) {
             VirtualPort port = service.getPort(VirtualPortId.portId(vPortId));

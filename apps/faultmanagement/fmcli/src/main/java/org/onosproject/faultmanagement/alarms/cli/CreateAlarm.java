@@ -16,13 +16,14 @@
 
 package org.onosproject.faultmanagement.alarms.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.faultmanagement.api.AlarmStore;
-import org.onosproject.incubator.net.faultmanagement.alarm.Alarm;
-import org.onosproject.incubator.net.faultmanagement.alarm.AlarmId;
-import org.onosproject.incubator.net.faultmanagement.alarm.DefaultAlarm;
+import org.onosproject.alarm.Alarm;
+import org.onosproject.alarm.AlarmId;
+import org.onosproject.alarm.DefaultAlarm;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.device.DeviceService;
 
@@ -31,6 +32,7 @@ import java.time.Instant;
 /**
  * Creates a default alarm on a device.
  */
+@Service
 @Command(scope = "onos", name = "alarm-create",
         description = "Creates an alarm")
 public class CreateAlarm extends AbstractShellCommand {
@@ -56,7 +58,7 @@ public class CreateAlarm extends AbstractShellCommand {
     private DeviceService deviceManager = AbstractShellCommand.get(DeviceService.class);
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         DeviceId deviceId = DeviceId.deviceId(deviceIdStr);
         if (!deviceManager.isAvailable(deviceId)) {
             throw new IllegalArgumentException("Device " + deviceIdStr + " is not available");

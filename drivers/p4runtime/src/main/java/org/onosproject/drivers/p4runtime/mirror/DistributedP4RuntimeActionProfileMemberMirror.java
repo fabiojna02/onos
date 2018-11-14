@@ -16,18 +16,16 @@
 
 package org.onosproject.drivers.p4runtime.mirror;
 
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.net.pi.runtime.PiActionGroupMember;
 import org.onosproject.net.pi.runtime.PiActionGroupMemberHandle;
 import org.onosproject.store.serializers.KryoNamespaces;
+import org.osgi.service.component.annotations.Component;
 
 /**
  * Distributed implementation of a P4Runtime action profile member mirror.
  */
-@Component(immediate = true)
-@Service
+@Component(immediate = true, service = AbstractDistributedP4RuntimeMirror.class)
 public class DistributedP4RuntimeActionProfileMemberMirror
         extends AbstractDistributedP4RuntimeMirror
         <PiActionGroupMemberHandle, PiActionGroupMember>

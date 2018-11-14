@@ -1,5 +1,5 @@
 COMPILE_DEPS = CORE_DEPS + JACKSON + KRYO + CLI + [
-    "//incubator/api:onos-incubator-api",
+    "//apps/tunnel/api:onos-apps-tunnel-api",
     "//core/store/serializers:onos-core-serializers",
     "//apps/gluon:onos-apps-gluon",
     "//apps/vtn/vtnrsc:onos-apps-vtn-vtnrsc",
@@ -8,6 +8,7 @@ COMPILE_DEPS = CORE_DEPS + JACKSON + KRYO + CLI + [
 ]
 
 osgi_jar_with_tests(
+    karaf_command_packages = ["org.onosproject.evpnopenflow.rsc.cli"],
     deps = COMPILE_DEPS,
 )
 
@@ -19,6 +20,7 @@ onos_app(
         "org.onosproject.route-service",
         "org.onosproject.evpn-route-service",
         "org.onosproject.gluon",
+        "org.onosproject.tunnel",
         "org.onosproject.vtn",
     ],
     title = "EVPN OpenFlow",

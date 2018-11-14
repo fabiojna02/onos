@@ -19,7 +19,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.routeservice.ResolvedRoute;
 import org.onosproject.routeservice.RouteInfo;
@@ -34,6 +35,7 @@ import java.util.Optional;
 /**
  * Command to show the routes in the routing tables.
  */
+@Service
 @Command(scope = "onos", name = "routes",
         description = "Lists routes in the route store")
 public class RoutesListCommand extends AbstractShellCommand {
@@ -50,7 +52,7 @@ public class RoutesListCommand extends AbstractShellCommand {
     private static final String FORMAT_TOTAL = "   Total: %d";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         RouteService service = AbstractShellCommand.get(RouteService.class);
 
         if (outputJson()) {

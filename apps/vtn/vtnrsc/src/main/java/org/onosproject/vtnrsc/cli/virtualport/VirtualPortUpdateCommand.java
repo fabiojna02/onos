@@ -18,9 +18,10 @@ package org.onosproject.vtnrsc.cli.virtualport;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.MacAddress;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.DeviceId;
@@ -41,6 +42,7 @@ import com.google.common.collect.Sets;
 /**
  * Supports for updating a virtualPort.
  */
+@Service
 @Command(scope = "onos", name = "virtualport-update",
         description = "Supports for updating a virtualPort.")
 public class VirtualPortUpdateCommand extends AbstractShellCommand {
@@ -113,7 +115,7 @@ public class VirtualPortUpdateCommand extends AbstractShellCommand {
     Set<SecurityGroup> securityGroups = Sets.newHashSet();
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         VirtualPortService service = get(VirtualPortService.class);
         Map<String, String> strMap = Maps.newHashMap();
         strMap.putIfAbsent("name", name);

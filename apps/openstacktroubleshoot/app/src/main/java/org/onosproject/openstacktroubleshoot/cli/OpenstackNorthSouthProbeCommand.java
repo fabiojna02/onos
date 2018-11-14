@@ -16,9 +16,10 @@
 package org.onosproject.openstacktroubleshoot.cli;
 
 import com.google.common.collect.Sets;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.cluster.NodeId;
@@ -41,6 +42,7 @@ import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.GATEWAY;
 /**
  * Checks the north-south VM connectivity.
  */
+@Service
 @Command(scope = "onos", name = "openstack-check-north-south",
         description = "Checks the north-south VMs connectivity")
 public class OpenstackNorthSouthProbeCommand extends AbstractShellCommand {
@@ -63,7 +65,7 @@ public class OpenstackNorthSouthProbeCommand extends AbstractShellCommand {
             groupedThreads(this.getClass().getSimpleName(), "probe-handler", log));
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackTroubleshootService tsService = get(OpenstackTroubleshootService.class);
         InstancePortService instPortService = get(InstancePortService.class);
         OpenstackNodeService osNodeService = get(OpenstackNodeService.class);

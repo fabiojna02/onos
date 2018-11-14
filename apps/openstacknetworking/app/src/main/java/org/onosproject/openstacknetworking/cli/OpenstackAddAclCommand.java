@@ -15,8 +15,9 @@
  */
 package org.onosproject.openstacknetworking.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.IPv4;
 import org.onlab.packet.IpAddress;
@@ -41,6 +42,7 @@ import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_FORCED_
 /**
  * Add acl.
  */
+@Service
 @Command(scope = "onos", name = "openstack-add-acl",
         description = "Add acl rules to VM")
 public class OpenstackAddAclCommand extends AbstractShellCommand {
@@ -57,7 +59,7 @@ public class OpenstackAddAclCommand extends AbstractShellCommand {
     private int dstPort = 0;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
 
         OpenstackFlowRuleService flowRuleService = AbstractShellCommand.get(OpenstackFlowRuleService.class);
         CoreService coreService = AbstractShellCommand.get(CoreService.class);

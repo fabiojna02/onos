@@ -13,9 +13,6 @@ TEST_DEPS = TEST_ADAPTERS + [
 BUNDLES = [
     ":onos-drivers-odtn-driver",
     "//drivers/utilities:onos-drivers-utilities",
-    #     "//lib:commons-jxpath",
-    #     "//lib:commons-beanutils", # jxpath dependency
-    #     "//lib:jdom",  # jxpath dependency
 ]
 
 osgi_jar_with_tests(

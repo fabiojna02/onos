@@ -16,8 +16,9 @@
 
 package org.onosproject.openstacknode.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Port;
@@ -38,6 +39,7 @@ import static org.onosproject.openstacknode.util.OpenstackNodeUtil.getConnectedC
 /**
  * Checks detailed node init state.
  */
+@Service
 @Command(scope = "onos", name = "openstack-node-check",
         description = "Shows detailed node init state")
 public class OpenstackNodeCheckCommand extends AbstractShellCommand {
@@ -50,7 +52,7 @@ public class OpenstackNodeCheckCommand extends AbstractShellCommand {
     private static final String MSG_ERROR = "ERROR";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackNodeService osNodeService = AbstractShellCommand.get(OpenstackNodeService.class);
         DeviceService deviceService = AbstractShellCommand.get(DeviceService.class);
 

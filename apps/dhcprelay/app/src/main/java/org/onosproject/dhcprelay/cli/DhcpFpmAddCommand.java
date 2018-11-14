@@ -16,10 +16,11 @@
 
 package org.onosproject.dhcprelay.cli;
 
-//import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+//import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
-import org.apache.karaf.shell.commands.Argument;
+import org.apache.karaf.shell.api.action.Argument;
 import org.onlab.packet.IpPrefix;
 import org.onlab.packet.IpAddress;
 import org.onosproject.routing.fpm.api.FpmRecord;
@@ -28,6 +29,7 @@ import org.onosproject.dhcprelay.api.DhcpRelayService;
 /**
  * Prints Dhcp FPM Routes information.
  */
+@Service
 @Command(scope = "onos", name = "dhcp-fpm-add",
          description = "Add DHCP FPM prefix in dhcp-fpm-store.")
 public class DhcpFpmAddCommand extends AbstractShellCommand {
@@ -45,7 +47,7 @@ public class DhcpFpmAddCommand extends AbstractShellCommand {
     String nextHopString = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
 
         IpPrefix prefix = IpPrefix.valueOf(prefixString);
         IpAddress nextHop = IpAddress.valueOf(nextHopString);

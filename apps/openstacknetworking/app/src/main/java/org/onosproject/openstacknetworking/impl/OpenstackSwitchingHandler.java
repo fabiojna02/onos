@@ -17,11 +17,11 @@
 package org.onosproject.openstacknetworking.impl;
 
 import com.google.common.base.Strings;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.VlanId;
 import org.onosproject.cfg.ComponentConfigService;
@@ -39,7 +39,6 @@ import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.onosproject.net.flow.instructions.ExtensionTreatment;
 import org.onosproject.openstacknetworking.api.InstancePort;
 import org.onosproject.openstacknetworking.api.InstancePortEvent;
 import org.onosproject.openstacknetworking.api.InstancePortListener;
@@ -48,8 +47,6 @@ import org.onosproject.openstacknetworking.api.OpenstackFlowRuleService;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkEvent;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkListener;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkService;
-import org.onosproject.openstacknetworking.api.OpenstackSecurityGroupService;
-import org.onosproject.openstacknetworking.util.RulePopulatorUtil;
 import org.onosproject.openstacknode.api.OpenstackNode;
 import org.onosproject.openstacknode.api.OpenstackNodeService;
 import org.openstack4j.model.network.Network;
@@ -98,41 +95,39 @@ public final class OpenstackSwitchingHandler {
     private static final String ARP_MODE = "arpMode";
     private static final String ERR_SET_FLOWS_VNI = "Failed to set flows for %s: Failed to get VNI for %s";
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected MastershipService mastershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DriverService driverService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterService clusterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService configService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+
     protected LeadershipService leadershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackFlowRuleService osFlowRuleService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected InstancePortService instancePortService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackNetworkService osNetworkService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackNodeService osNodeService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected OpenstackSecurityGroupService securityGroupService;
 
     private final ExecutorService eventExecutor = newSingleThreadExecutor(
             groupedThreads(this.getClass().getSimpleName(), "event-handler"));
@@ -500,25 +495,21 @@ public final class OpenstackSwitchingHandler {
                 .matchInPort(instPort.portNumber())
                 .build();
 
-        // XXX All egress traffic needs to go through connection tracking module,
-        // which might hurt its performance.
-        ExtensionTreatment ctTreatment =
-                RulePopulatorUtil.niciraConnTrackTreatmentBuilder(driverService, instPort.deviceId())
-                        .commit(true).build();
+        TrafficTreatment.Builder tBuilder = DefaultTrafficTreatment.builder()
+                .setTunnelId(getVni(instPort));
 
-        TrafficTreatment.Builder tb = DefaultTrafficTreatment.builder()
-                .setTunnelId(getVni(instPort))
-                .transition(ARP_TABLE);
 
-        if (securityGroupService.isSecurityGroupEnabled() && ethType == Ethernet.TYPE_IPV4) {
-            tb.extension(ctTreatment, instPort.deviceId());
+        if (ethType == Ethernet.TYPE_ARP) {
+            tBuilder.transition(ARP_TABLE);
+        } else if (ethType == Ethernet.TYPE_IPV4) {
+            tBuilder.transition(ACL_TABLE);
         }
 
         osFlowRuleService.setRule(
                 appId,
                 instPort.deviceId(),
                 selector,
-                tb.build(),
+                tBuilder.build(),
                 PRIORITY_TUNNEL_TAG_RULE,
                 VTAG_TABLE,
                 install);
@@ -803,7 +794,7 @@ public final class OpenstackSwitchingHandler {
             boolean isNwAdminStateUp = event.subject().isAdminStateUp();
             boolean isPortAdminStateUp = event.port().isAdminStateUp();
 
-            InstancePort instPort = instancePortService.instancePort(event.port().getId());
+            String portId = event.port().getId();
 
             switch (event.type()) {
                 case OPENSTACK_NETWORK_CREATED:
@@ -818,20 +809,20 @@ public final class OpenstackSwitchingHandler {
                     break;
                 case OPENSTACK_PORT_CREATED:
                 case OPENSTACK_PORT_UPDATED:
-
-                    if (instPort != null) {
-                        eventExecutor.execute(() ->
-                                setPortBlockRules(instPort, !isPortAdminStateUp));
-                    }
-
+                    eventExecutor.execute(() -> {
+                        InstancePort instPort = instancePortService.instancePort(portId);
+                        if (instPort != null) {
+                            setPortBlockRules(instPort, !isPortAdminStateUp);
+                        }
+                    });
                     break;
                 case OPENSTACK_PORT_REMOVED:
-
-                    if (instPort != null) {
-                        eventExecutor.execute(() ->
-                                setPortBlockRules(instPort, false));
-                    }
-
+                    eventExecutor.execute(() -> {
+                        InstancePort instPort = instancePortService.instancePort(portId);
+                        if (instPort != null) {
+                            setPortBlockRules(instPort, false);
+                        }
+                    });
                     break;
                 default:
                     break;

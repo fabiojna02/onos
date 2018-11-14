@@ -18,8 +18,9 @@ package org.onosproject.vtnrsc.cli.virtualport;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onosproject.cli.AbstractShellCommand;
@@ -41,6 +42,7 @@ import com.google.common.collect.Sets;
 /**
  * Supports for updating the external gateway virtualPort.
  */
+@Service
 @Command(scope = "onos", name = "externalgateway-update",
         description = "Supports for updating the external gateway virtualPort.")
 public class VirtualPortExGwUpdateCommand extends AbstractShellCommand {
@@ -50,7 +52,7 @@ public class VirtualPortExGwUpdateCommand extends AbstractShellCommand {
     String macAddress = "";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         VirtualPortService service = get(VirtualPortService.class);
         SubnetService subnetService = get(SubnetService.class);
         TenantNetworkService tenantNetworkService = get(TenantNetworkService.class);

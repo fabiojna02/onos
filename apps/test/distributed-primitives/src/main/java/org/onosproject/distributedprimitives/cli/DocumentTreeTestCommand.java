@@ -15,8 +15,8 @@
  */
 package org.onosproject.distributedprimitives.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.DocumentPath;
@@ -55,7 +55,7 @@ public class DocumentTreeTestCommand extends AbstractShellCommand {
     DocumentTree<String> tree;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         StorageService storageService = get(StorageService.class);
         tree = storageService.<String>getDocumentTree(name, Serializer.using(KryoNamespaces.BASIC)).asDocumentTree();
 

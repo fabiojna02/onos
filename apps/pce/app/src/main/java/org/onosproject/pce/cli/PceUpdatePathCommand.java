@@ -20,10 +20,11 @@ import static org.slf4j.LoggerFactory.getLogger;
 import java.util.List;
 import java.util.LinkedList;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
 
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.util.DataRateUnit;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.incubator.net.tunnel.TunnelId;
@@ -37,6 +38,7 @@ import org.slf4j.Logger;
 /**
  * Supports updating the PCE path.
  */
+@Service
 @Command(scope = "onos", name = "pce-update-path",
         description = "Supports updating PCE path.")
 public class PceUpdatePathCommand extends AbstractShellCommand {
@@ -54,7 +56,7 @@ public class PceUpdatePathCommand extends AbstractShellCommand {
     Double bandwidth = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         log.info("executing pce-update-path");
 
         PceService service = get(PceService.class);

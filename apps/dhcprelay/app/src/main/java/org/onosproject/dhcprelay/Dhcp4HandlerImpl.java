@@ -23,14 +23,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.BasePacket;
 import org.onlab.packet.DHCP;
 import org.onlab.packet.Ethernet;
@@ -54,44 +46,50 @@ import org.onosproject.dhcprelay.config.DhcpServerConfig;
 import org.onosproject.dhcprelay.config.IgnoreDhcpConfig;
 import org.onosproject.dhcprelay.store.DhcpRecord;
 import org.onosproject.dhcprelay.store.DhcpRelayStore;
+import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
+import org.onosproject.net.Host;
+import org.onosproject.net.HostId;
+import org.onosproject.net.HostLocation;
 import org.onosproject.net.behaviour.Pipeliner;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.flow.DefaultTrafficSelector;
+import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficSelector;
+import org.onosproject.net.flow.TrafficTreatment;
 import org.onosproject.net.flowobjective.DefaultForwardingObjective;
 import org.onosproject.net.flowobjective.FlowObjectiveService;
 import org.onosproject.net.flowobjective.ForwardingObjective;
 import org.onosproject.net.flowobjective.Objective;
 import org.onosproject.net.flowobjective.ObjectiveContext;
 import org.onosproject.net.flowobjective.ObjectiveError;
+import org.onosproject.net.host.DefaultHostDescription;
+import org.onosproject.net.host.HostDescription;
 import org.onosproject.net.host.HostEvent;
 import org.onosproject.net.host.HostListener;
 import org.onosproject.net.host.HostProvider;
 import org.onosproject.net.host.HostProviderRegistry;
 import org.onosproject.net.host.HostProviderService;
-import org.onosproject.net.intf.Interface;
-import org.onosproject.net.intf.InterfaceService;
-import org.onosproject.net.packet.PacketPriority;
-import org.onosproject.net.provider.ProviderId;
-import org.onosproject.routeservice.Route;
-import org.onosproject.routeservice.RouteStore;
-import org.onosproject.net.ConnectPoint;
-import org.onosproject.net.Host;
-import org.onosproject.net.HostId;
-import org.onosproject.net.HostLocation;
-import org.onosproject.net.flow.DefaultTrafficTreatment;
-import org.onosproject.net.flow.TrafficTreatment;
-import org.onosproject.net.host.DefaultHostDescription;
-import org.onosproject.net.host.HostDescription;
 import org.onosproject.net.host.HostService;
 import org.onosproject.net.host.InterfaceIpAddress;
+import org.onosproject.net.intf.Interface;
+import org.onosproject.net.intf.InterfaceService;
 import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.OutboundPacket;
 import org.onosproject.net.packet.PacketContext;
+import org.onosproject.net.packet.PacketPriority;
 import org.onosproject.net.packet.PacketService;
+import org.onosproject.net.provider.ProviderId;
+import org.onosproject.routeservice.Route;
+import org.onosproject.routeservice.RouteStore;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,20 +115,24 @@ import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_MessageType;
 import static org.onlab.packet.MacAddress.valueOf;
 import static org.onlab.packet.dhcp.DhcpRelayAgentOption.RelayAgentInfoOptions.CIRCUIT_ID;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.dhcprelay.OsgiPropertyConstants.LEARN_ROUTE_FROM_LEASE_QUERY;
+import static org.onosproject.dhcprelay.OsgiPropertyConstants.LEARN_ROUTE_FROM_LEASE_QUERY_DEFAULT;
 import static org.onosproject.net.flowobjective.Objective.Operation.ADD;
 import static org.onosproject.net.flowobjective.Objective.Operation.REMOVE;
 
 
-@Component
-@Service
-@Property(name = "version", value = "4")
+@Component(
+    service = { DhcpHandler.class, HostProvider.class },
+    property = {
+        "version:Integer = 4",
+        LEARN_ROUTE_FROM_LEASE_QUERY + ":Boolean=" + LEARN_ROUTE_FROM_LEASE_QUERY_DEFAULT
+    }
+)
 public class Dhcp4HandlerImpl implements DhcpHandler, HostProvider {
     public static final String DHCP_V4_RELAY_APP = "org.onosproject.Dhcp4HandlerImpl";
     public static final ProviderId PROVIDER_ID = new ProviderId("dhcp4", DHCP_V4_RELAY_APP);
     private static final String BROADCAST_IP = "255.255.255.255";
     private static final int IGNORE_CONTROL_PRIORITY = PacketPriority.CONTROL.priorityValue() + 1000;
-
-    private static final String LQ_ROUTE_PROPERTY_NAME = "learnRouteFromLeasequery";
 
     private static final TrafficSelector CLIENT_SERVER_SELECTOR = DefaultTrafficSelector.builder()
             .matchEthType(Ethernet.TYPE_IPV4)
@@ -152,34 +154,34 @@ public class Dhcp4HandlerImpl implements DhcpHandler, HostProvider {
     );
     private static Logger log = LoggerFactory.getLogger(Dhcp4HandlerImpl.class);
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DhcpRelayStore dhcpRelayStore;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected PacketService packetService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected RouteStore routeStore;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected InterfaceService interfaceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected HostService hostService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected HostProviderRegistry providerRegistry;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected FlowObjectiveService flowObjectiveService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
     protected HostProviderService providerService;
@@ -190,9 +192,8 @@ public class Dhcp4HandlerImpl implements DhcpHandler, HostProvider {
     private List<DhcpServerInfo> defaultServerInfoList = new CopyOnWriteArrayList<>();
     private List<DhcpServerInfo> indirectServerInfoList = new CopyOnWriteArrayList<>();
 
-    @Property(name = Dhcp4HandlerImpl.LQ_ROUTE_PROPERTY_NAME, boolValue = false,
-            label = "Enable learning routing information from LQ")
-    private Boolean learnRouteFromLeasequery = Boolean.TRUE;
+    /** Enable learning routing information from LQ. */
+    private Boolean learnRouteFromLeasequery = LEARN_ROUTE_FROM_LEASE_QUERY_DEFAULT;
 
     private Executor hostEventExecutor = newSingleThreadExecutor(
         groupedThreads("dhcp4-event-host", "%d", log));
@@ -223,7 +224,7 @@ public class Dhcp4HandlerImpl implements DhcpHandler, HostProvider {
     protected void modified(ComponentContext context) {
         Dictionary<?, ?> properties = context.getProperties();
         Boolean flag;
-        flag = Tools.isPropertyEnabled(properties, Dhcp4HandlerImpl.LQ_ROUTE_PROPERTY_NAME);
+        flag = Tools.isPropertyEnabled(properties, LEARN_ROUTE_FROM_LEASE_QUERY);
         if (flag != null) {
             learnRouteFromLeasequery = flag;
             log.info("Learning routes from DHCP leasequery is {}",

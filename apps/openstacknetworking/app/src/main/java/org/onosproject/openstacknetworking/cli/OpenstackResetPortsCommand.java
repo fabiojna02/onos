@@ -15,9 +15,10 @@
  */
 package org.onosproject.openstacknetworking.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.openstacknetworking.api.InstancePort;
 import org.onosproject.openstacknetworking.api.InstancePortAdminService;
@@ -28,6 +29,7 @@ import static org.onosproject.openstacknetworking.api.InstancePort.State.INACTIV
 /**
  * Purges existing instance ports.
  */
+@Service
 @Command(scope = "onos", name = "openstack-reset-ports",
         description = "Reset existing instance ports created by OpenStack networking app")
 public class OpenstackResetPortsCommand extends AbstractShellCommand {
@@ -48,7 +50,7 @@ public class OpenstackResetPortsCommand extends AbstractShellCommand {
     private static final long SLEEP_MS = 1000; // we wait 1s for reset each port
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         InstancePortAdminService service = get(InstancePortAdminService.class);
 
         if ((!isAll && !isInactive && portIds == null) ||

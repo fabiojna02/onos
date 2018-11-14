@@ -16,9 +16,10 @@
 package org.onosproject.openstacktroubleshoot.cli;
 
 import com.google.common.collect.Sets;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onlab.packet.IpAddress;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.cluster.ClusterService;
@@ -44,6 +45,7 @@ import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.COMPUTE;
 /**
  * Checks the east-west VMs connectivity.
  */
+@Service
 @Command(scope = "onos", name = "openstack-check-east-west",
         description = "Checks the east-west VMs connectivity")
 public class OpenstackEastWestProbeCommand extends AbstractShellCommand {
@@ -66,7 +68,7 @@ public class OpenstackEastWestProbeCommand extends AbstractShellCommand {
             groupedThreads(this.getClass().getSimpleName(), "probe-handler", log));
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         OpenstackTroubleshootService tsService = get(OpenstackTroubleshootService.class);
         InstancePortService instPortService = get(InstancePortService.class);
         MastershipService mastershipService = get(MastershipService.class);

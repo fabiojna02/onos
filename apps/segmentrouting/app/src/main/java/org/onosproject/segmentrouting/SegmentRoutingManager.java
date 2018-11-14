@@ -20,14 +20,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.ICMP6;
 import org.onlab.packet.IPv4;
@@ -110,19 +102,17 @@ import org.onosproject.segmentrouting.grouphandler.NextNeighbors;
 import org.onosproject.segmentrouting.mcast.McastHandler;
 import org.onosproject.segmentrouting.mcast.McastRole;
 import org.onosproject.segmentrouting.mcast.McastRoleStoreKey;
+import org.onosproject.segmentrouting.mcast.McastStoreKey;
 import org.onosproject.segmentrouting.pwaas.DefaultL2Tunnel;
 import org.onosproject.segmentrouting.pwaas.DefaultL2TunnelDescription;
 import org.onosproject.segmentrouting.pwaas.DefaultL2TunnelHandler;
 import org.onosproject.segmentrouting.pwaas.DefaultL2TunnelPolicy;
-
 import org.onosproject.segmentrouting.pwaas.L2Tunnel;
+import org.onosproject.segmentrouting.pwaas.L2TunnelDescription;
 import org.onosproject.segmentrouting.pwaas.L2TunnelHandler;
 import org.onosproject.segmentrouting.pwaas.L2TunnelPolicy;
-import org.onosproject.segmentrouting.pwaas.L2TunnelDescription;
-
 import org.onosproject.segmentrouting.storekey.DestinationSetNextObjectiveStoreKey;
 import org.onosproject.segmentrouting.storekey.DummyVlanIdStoreKey;
-import org.onosproject.segmentrouting.mcast.McastStoreKey;
 import org.onosproject.segmentrouting.storekey.PortNextObjectiveStoreKey;
 import org.onosproject.segmentrouting.storekey.VlanNextObjectiveStoreKey;
 import org.onosproject.segmentrouting.storekey.XConnectStoreKey;
@@ -133,6 +123,12 @@ import org.onosproject.store.service.EventuallyConsistentMapBuilder;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.WallClockTimestamp;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -161,106 +157,125 @@ import static org.onlab.packet.Ethernet.TYPE_ARP;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.config.NetworkConfigEvent.Type.CONFIG_REGISTERED;
 import static org.onosproject.net.config.NetworkConfigEvent.Type.CONFIG_UNREGISTERED;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.ACTIVE_PROBING_DEFAULT;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.DEFAULT_INTERNAL_VLAN_DEFAULT;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.PROP_ACTIVE_PROBING;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.PROP_DEFAULT_INTERNAL_VLAN;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.PROP_PW_TRANSPORT_VLAN;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.PROP_RESPOND_TO_UNKNOWN_HOSTS;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.PROP_ROUTE_DOUBLE_TAGGED_HOSTS;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.PROP_SINGLE_HOMED_DOWN;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.PROP_SYMMETRIC_PROBING;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.PW_TRANSPORT_VLAN_DEFAULT;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.RESPOND_TO_UNKNOWN_HOSTS_DEFAULT;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.ROUTE_DOUBLE_TAGGED_HOSTS_DEFAULT;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.SINGLE_HOMED_DOWN_DEFAULT;
+import static org.onosproject.segmentrouting.OsgiPropertyConstants.SYMMETRIC_PROBING_DEFAULT;
 
 /**
  * Segment routing manager.
  */
-@Service
-@Component(immediate = true)
+@Component(
+    immediate = true,
+    service = SegmentRoutingService.class,
+    property = {
+        PROP_ACTIVE_PROBING + ":Boolean=" + ACTIVE_PROBING_DEFAULT,
+        PROP_SINGLE_HOMED_DOWN + ":Boolean=" + SINGLE_HOMED_DOWN_DEFAULT,
+        PROP_RESPOND_TO_UNKNOWN_HOSTS + ":Boolean=" + RESPOND_TO_UNKNOWN_HOSTS_DEFAULT,
+        PROP_ROUTE_DOUBLE_TAGGED_HOSTS + ":Boolean=" + ROUTE_DOUBLE_TAGGED_HOSTS_DEFAULT,
+        PROP_DEFAULT_INTERNAL_VLAN + ":Integer=" + DEFAULT_INTERNAL_VLAN_DEFAULT,
+        PROP_PW_TRANSPORT_VLAN + ":Integer=" + PW_TRANSPORT_VLAN_DEFAULT,
+        PROP_SYMMETRIC_PROBING + ":Boolean=" + SYMMETRIC_PROBING_DEFAULT
+    }
+)
 public class SegmentRoutingManager implements SegmentRoutingService {
 
     private static Logger log = LoggerFactory.getLogger(SegmentRoutingManager.class);
     private static final String NOT_MASTER = "Current instance is not the master of {}. Ignore.";
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private ComponentConfigService compCfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private NeighbourResolutionService neighbourResolutionService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     PacketService packetService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     HostService hostService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     HostProbingService probingService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     DeviceAdminService deviceAdminService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public FlowObjectiveService flowObjectiveService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public LinkService linkService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public MastershipService mastershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public StorageService storageService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public MulticastRouteService multicastRouteService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public TopologyService topologyService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     RouteService routeService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public NetworkConfigRegistry cfgService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public InterfaceService interfaceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public ClusterService clusterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public WorkPartitionService workPartitionService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     public LeadershipService leadershipService;
 
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL_UNARY)
+    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
     public XconnectService xconnectService;
 
-    @Property(name = "activeProbing", boolValue = true,
-            label = "Enable active probing to discover dual-homed hosts.")
-    boolean activeProbing = true;
+    /** Enable active probing to discover dual-homed hosts. */
+    boolean activeProbing = ACTIVE_PROBING_DEFAULT;
 
-    @Property(name = "singleHomedDown", boolValue = false,
-            label = "Enable administratively taking down single-homed hosts "
-                    + "when all uplinks are gone")
-    boolean singleHomedDown = false;
+    /** Enable only send probe on the same port number of the pair device. */
+    boolean symmetricProbing = SYMMETRIC_PROBING_DEFAULT;
 
-    @Property(name = "respondToUnknownHosts", boolValue = true,
-            label = "Enable this to respond to ARP/NDP requests from unknown hosts.")
-    boolean respondToUnknownHosts = true;
+    /** Enable administratively taking down single-homed hosts. */
+    boolean singleHomedDown = SINGLE_HOMED_DOWN_DEFAULT;
 
-    @Property(name = "routeDoubleTaggedHosts", boolValue = false,
-            label = "Program flows and groups to pop and route double tagged hosts")
-    boolean routeDoubleTaggedHosts = false;
+    /** Enable this to respond to ARP/NDP requests from unknown hosts. */
+    boolean respondToUnknownHosts = RESPOND_TO_UNKNOWN_HOSTS_DEFAULT;
 
-    private static final int DEFAULT_INTERNAL_VLAN = 4094;
-    @Property(name = "defaultInternalVlan", intValue = DEFAULT_INTERNAL_VLAN,
-            label = "internal vlan assigned by default to unconfigured ports")
-    private int defaultInternalVlan = DEFAULT_INTERNAL_VLAN;
+    /** Program flows and groups to pop and route double tagged hosts. */
+    boolean routeDoubleTaggedHosts = ROUTE_DOUBLE_TAGGED_HOSTS_DEFAULT;
 
-    private static final int PW_TRANSPORT_VLAN = 4090;
-    @Property(name = "pwTransportVlan", intValue = PW_TRANSPORT_VLAN,
-            label = "vlan used for transport of pseudowires between switches")
-    private int pwTransportVlan = PW_TRANSPORT_VLAN;
+    /** internal vlan assigned by default to unconfigured ports. */
+    private int defaultInternalVlan = DEFAULT_INTERNAL_VLAN_DEFAULT;
+
+    /** vlan used for transport of pseudowires between switches. */
+    private int pwTransportVlan = PW_TRANSPORT_VLAN_DEFAULT;
 
     ArpHandler arpHandler = null;
     IcmpHandler icmpHandler = null;
@@ -609,14 +624,22 @@ public class SegmentRoutingManager implements SegmentRoutingService {
             return;
         }
 
-        String strActiveProbing = Tools.get(properties, "activeProbing");
+        String strActiveProbing = Tools.get(properties, PROP_ACTIVE_PROBING);
         boolean expectActiveProbing = Boolean.parseBoolean(strActiveProbing);
         if (expectActiveProbing != activeProbing) {
             activeProbing = expectActiveProbing;
             log.info("{} active probing", activeProbing ? "Enabling" : "Disabling");
         }
 
-        String strSingleHomedDown = Tools.get(properties, "singleHomedDown");
+
+        String strSymmetricProbing = Tools.get(properties, PROP_SYMMETRIC_PROBING);
+        boolean expectSymmetricProbing = Boolean.parseBoolean(strSymmetricProbing);
+        if (expectSymmetricProbing != symmetricProbing) {
+            symmetricProbing = expectSymmetricProbing;
+            log.info("{} symmetric probing", symmetricProbing ? "Enabling" : "Disabling");
+        }
+
+        String strSingleHomedDown = Tools.get(properties, PROP_SINGLE_HOMED_DOWN);
         boolean expectSingleHomedDown = Boolean.parseBoolean(strSingleHomedDown);
         if (expectSingleHomedDown != singleHomedDown) {
             singleHomedDown = expectSingleHomedDown;
@@ -635,14 +658,14 @@ public class SegmentRoutingManager implements SegmentRoutingService {
             }
         }
 
-        String strRespondToUnknownHosts = Tools.get(properties, "respondToUnknownHosts");
+        String strRespondToUnknownHosts = Tools.get(properties, PROP_RESPOND_TO_UNKNOWN_HOSTS);
         boolean expectRespondToUnknownHosts = Boolean.parseBoolean(strRespondToUnknownHosts);
         if (expectRespondToUnknownHosts != respondToUnknownHosts) {
             respondToUnknownHosts = expectRespondToUnknownHosts;
             log.info("{} responding to ARPs/NDPs from unknown hosts", respondToUnknownHosts ? "Enabling" : "Disabling");
         }
 
-        String strRouteDoubleTaggedHosts = Tools.get(properties, "routeDoubleTaggedHosts");
+        String strRouteDoubleTaggedHosts = Tools.get(properties, PROP_ROUTE_DOUBLE_TAGGED_HOSTS);
         boolean expectRouteDoubleTaggedHosts = Boolean.parseBoolean(strRouteDoubleTaggedHosts);
         if (expectRouteDoubleTaggedHosts != routeDoubleTaggedHosts) {
             routeDoubleTaggedHosts = expectRouteDoubleTaggedHosts;
@@ -655,7 +678,7 @@ public class SegmentRoutingManager implements SegmentRoutingService {
             }
         }
 
-        String strDefaultInternalVlan = Tools.get(properties, "defaultInternalVlan");
+        String strDefaultInternalVlan = Tools.get(properties, PROP_DEFAULT_INTERNAL_VLAN);
         int defIntVlan = Integer.parseInt(strDefaultInternalVlan);
         if (defIntVlan != defaultInternalVlan) {
             if (canUseVlanId(defIntVlan)) {
@@ -673,7 +696,7 @@ public class SegmentRoutingManager implements SegmentRoutingService {
             }
         }
 
-        String strPwTxpVlan = Tools.get(properties, "pwTransportVlan");
+        String strPwTxpVlan = Tools.get(properties, PROP_PW_TRANSPORT_VLAN);
         int pwTxpVlan = Integer.parseInt(strPwTxpVlan);
         if (pwTxpVlan != pwTransportVlan) {
             if (canUseVlanId(pwTxpVlan)) {

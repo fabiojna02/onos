@@ -15,8 +15,9 @@
  */
 package org.onosproject.vtnrsc.cli.router;
 
-import org.apache.karaf.shell.commands.Command;
-import org.apache.karaf.shell.commands.Option;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Option;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.vtnrsc.Router;
 import org.onosproject.vtnrsc.RouterId;
@@ -25,6 +26,7 @@ import org.onosproject.vtnrsc.router.RouterService;
 /**
  * Supports for query a list of router.
  */
+@Service
 @Command(scope = "onos", name = "routers", description = "Supports for creating a router")
 public class RouterQueryCommand extends AbstractShellCommand {
     @Option(name = "-i", aliases = "--id", description = "The router identifier",
@@ -39,7 +41,7 @@ public class RouterQueryCommand extends AbstractShellCommand {
             + "externalGatewayInfo=%s, status=%s, adminStateUp=%s, distributed=%s, routers=%s";
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         RouterService service = get(RouterService.class);
         if (id != null) {
             Router router = service.getRouter(RouterId.valueOf(id));

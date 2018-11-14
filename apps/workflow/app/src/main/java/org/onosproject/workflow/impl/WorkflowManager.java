@@ -17,12 +17,6 @@ package org.onosproject.workflow.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onosproject.net.config.NetworkConfigRegistry;
 import org.onosproject.net.config.NetworkConfigService;
 import org.onosproject.workflow.api.DefaultWorkplace;
@@ -37,6 +31,11 @@ import org.onosproject.workflow.api.WorkflowStore;
 import org.onosproject.workflow.api.Workplace;
 import org.onosproject.workflow.api.WorkplaceDescription;
 import org.onosproject.workflow.api.WorkplaceStore;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.net.URI;
@@ -44,25 +43,24 @@ import java.util.Objects;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
-@Component(immediate = true)
-@Service
+@Component(immediate = true, service = WorkflowService.class)
 public class WorkflowManager implements WorkflowService {
 
     protected static final Logger log = getLogger(WorkflowManager.class);
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private WorkflowExecutionService workflowExecutionService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected WorkplaceStore workplaceStore;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected WorkflowStore workflowStore;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private NetworkConfigService networkConfigService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     private NetworkConfigRegistry networkConfigRegistry;
 
     private WorkflowNetConfigListener netcfgListener;

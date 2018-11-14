@@ -21,12 +21,6 @@ import com.google.common.collect.Maps;
 import com.googlecode.concurrenttrees.radix.node.concrete.DefaultByteArrayNodeFactory;
 import com.googlecode.concurrenttrees.radixinverted.ConcurrentInvertedRadixTree;
 import com.googlecode.concurrenttrees.radixinverted.InvertedRadixTree;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.ARP;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.IPv6;
@@ -37,6 +31,7 @@ import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 import org.onlab.packet.ndp.NeighborSolicitation;
+import org.onosproject.app.ApplicationService;
 import org.onosproject.component.ComponentService;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
@@ -64,6 +59,11 @@ import org.onosproject.net.intf.InterfaceService;
 import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.OutboundPacket;
 import org.onosproject.net.packet.PacketService;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.onosproject.simplefabric.api.FabricNetwork;
 import org.onosproject.simplefabric.api.FabricRoute;
 import org.onosproject.simplefabric.api.FabricSubnet;
@@ -81,6 +81,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.onosproject.routeservice.RouteTools.createBinaryString;
 import static org.onosproject.simplefabric.api.Constants.ALLOW_ETH_ADDRESS_SELECTOR;
 import static org.onosproject.simplefabric.api.Constants.ALLOW_IPV6;
 import static org.onosproject.simplefabric.api.Constants.APP_ID;
@@ -89,42 +90,43 @@ import static org.onosproject.simplefabric.api.Constants.REACTIVE_ALLOW_LINK_CP;
 import static org.onosproject.simplefabric.api.Constants.REACTIVE_HASHED_PATH_SELECTION;
 import static org.onosproject.simplefabric.api.Constants.REACTIVE_MATCH_IP_PROTO;
 import static org.onosproject.simplefabric.api.Constants.REACTIVE_SINGLE_TO_SINGLE;
-import static org.onosproject.simplefabric.util.RouteTools.createBinaryString;
 
 
 /**
  * Reactive routing configuration manager.
  */
-@Component(immediate = true)
-@Service
+@Component(immediate = true, service = SimpleFabricService.class)
 public class SimpleFabricManager extends ListenerRegistry<SimpleFabricEvent, SimpleFabricListener>
         implements SimpleFabricService {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected CoreService coreService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected ApplicationService applicationService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetworkConfigService configService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected NetworkConfigRegistry registry;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected InterfaceService interfaceService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected HostService hostService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected PacketService packetService;
 
-    // components to be activated within SimpleFabric
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    // compoents to be activated within SimpleFabric
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentService componentService;
 
     // SimpleFabric variables

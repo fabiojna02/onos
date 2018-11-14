@@ -19,14 +19,6 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import org.apache.felix.scr.annotations.Activate;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
-import org.apache.felix.scr.annotations.Modified;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.cluster.ClusterService;
@@ -57,6 +49,7 @@ import org.onosproject.store.AbstractStore;
 import org.onosproject.store.cluster.messaging.ClusterCommunicationService;
 import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.ConsistentMap;
+import org.onosproject.store.service.DistributedPrimitive.Status;
 import org.onosproject.store.service.MapEvent;
 import org.onosproject.store.service.MapEventListener;
 import org.onosproject.store.service.MultiValuedTimestamp;
@@ -64,8 +57,13 @@ import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.Topic;
 import org.onosproject.store.service.Versioned;
-import org.onosproject.store.service.DistributedPrimitive.Status;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -95,46 +93,56 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.get;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.store.OsgiPropertyConstants.ALLOW_EXTRANEOUS_GROUPS;
+import static org.onosproject.store.OsgiPropertyConstants.ALLOW_EXTRANEOUS_GROUPS_DEFAULT;
+import static org.onosproject.store.OsgiPropertyConstants.GARBAGE_COLLECT;
+import static org.onosproject.store.OsgiPropertyConstants.GARBAGE_COLLECT_DEFAULT;
+import static org.onosproject.store.OsgiPropertyConstants.GARBAGE_COLLECT_THRESH;
+import static org.onosproject.store.OsgiPropertyConstants.GARBAGE_COLLECT_THRESH_DEFAULT;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Manages inventory of group entries using distributed group stores from the
  * storage service.
  */
-@Component(immediate = true)
-@Service
+@Component(
+        immediate = true,
+        service = GroupStore.class,
+        property = {
+                GARBAGE_COLLECT + ":Boolean=" + GARBAGE_COLLECT_DEFAULT,
+                GARBAGE_COLLECT_THRESH + ":Integer=" + GARBAGE_COLLECT_THRESH_DEFAULT,
+                ALLOW_EXTRANEOUS_GROUPS + ":Boolean=" + ALLOW_EXTRANEOUS_GROUPS_DEFAULT
+        }
+)
 public class DistributedGroupStore
         extends AbstractStore<GroupEvent, GroupStoreDelegate>
         implements GroupStore {
 
     private final Logger log = getLogger(getClass());
 
-    private static final boolean GARBAGE_COLLECT = false;
-    private static final int GC_THRESH = 6;
-    private static final boolean ALLOW_EXTRANEOUS_GROUPS = true;
     private static final int MAX_FAILED_ATTEMPTS = 3;
 
     private final int dummyId = 0xffffffff;
     private final GroupId dummyGroupId = new GroupId(dummyId);
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterCommunicationService clusterCommunicator;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ClusterService clusterService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected StorageService storageService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected MastershipService mastershipService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected ComponentConfigService cfgService;
 
     // Guarantees enabling DriverService before enabling GroupStore
     // (DriverService is used in serializing/de-serializing DefaultGroup)
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DriverService driverService;
 
     private ScheduledExecutorService executor;
@@ -162,17 +170,14 @@ public class DistributedGroupStore
 
     private static Topic<GroupStoreMessage> groupTopic;
 
-    @Property(name = "garbageCollect", boolValue = GARBAGE_COLLECT,
-            label = "Enable group garbage collection")
-    private boolean garbageCollect = GARBAGE_COLLECT;
+    /** Enable group garbage collection. */
+    private boolean garbageCollect = GARBAGE_COLLECT_DEFAULT;
 
-    @Property(name = "gcThresh", intValue = GC_THRESH,
-            label = "Number of rounds for group garbage collection")
-    private int gcThresh = GC_THRESH;
+    /** Number of rounds for group garbage collection. */
+    private int gcThresh = GARBAGE_COLLECT_THRESH_DEFAULT;
 
-    @Property(name = "allowExtraneousGroups", boolValue = ALLOW_EXTRANEOUS_GROUPS,
-            label = "Allow groups in switches not installed by ONOS")
-    private boolean allowExtraneousGroups = ALLOW_EXTRANEOUS_GROUPS;
+    /** Allow groups in switches not installed by ONOS. */
+    private boolean allowExtraneousGroups = ALLOW_EXTRANEOUS_GROUPS_DEFAULT;
 
     @Activate
     public void activate(ComponentContext context) {
@@ -261,18 +266,18 @@ public class DistributedGroupStore
         Dictionary<?, ?> properties = context != null ? context.getProperties() : new Properties();
 
         try {
-            String s = get(properties, "garbageCollect");
-            garbageCollect = isNullOrEmpty(s) ? GARBAGE_COLLECT : Boolean.parseBoolean(s.trim());
+            String s = get(properties, GARBAGE_COLLECT);
+            garbageCollect = isNullOrEmpty(s) ? GARBAGE_COLLECT_DEFAULT : Boolean.parseBoolean(s.trim());
 
-            s = get(properties, "gcThresh");
-            gcThresh = isNullOrEmpty(s) ? GC_THRESH : Integer.parseInt(s.trim());
+            s = get(properties, GARBAGE_COLLECT_THRESH);
+            gcThresh = isNullOrEmpty(s) ? GARBAGE_COLLECT_THRESH_DEFAULT : Integer.parseInt(s.trim());
 
-            s = get(properties, "allowExtraneousGroups");
-            allowExtraneousGroups = isNullOrEmpty(s) ? ALLOW_EXTRANEOUS_GROUPS : Boolean.parseBoolean(s.trim());
+            s = get(properties, ALLOW_EXTRANEOUS_GROUPS);
+            allowExtraneousGroups = isNullOrEmpty(s) ? ALLOW_EXTRANEOUS_GROUPS_DEFAULT : Boolean.parseBoolean(s.trim());
         } catch (Exception e) {
-            gcThresh = GC_THRESH;
-            garbageCollect = GARBAGE_COLLECT;
-            allowExtraneousGroups = ALLOW_EXTRANEOUS_GROUPS;
+            gcThresh = GARBAGE_COLLECT_THRESH_DEFAULT;
+            garbageCollect = GARBAGE_COLLECT_DEFAULT;
+            allowExtraneousGroups = ALLOW_EXTRANEOUS_GROUPS_DEFAULT;
         }
     }
 

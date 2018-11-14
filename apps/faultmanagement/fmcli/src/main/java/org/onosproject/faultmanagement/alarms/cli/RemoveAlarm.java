@@ -16,11 +16,11 @@
 
 package org.onosproject.faultmanagement.alarms.cli;
 
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.faultmanagement.api.AlarmStore;
-import org.onosproject.incubator.net.faultmanagement.alarm.AlarmId;
+import org.onosproject.alarm.AlarmId;
 
 /**
  * Remove an alarm from the Alarm Store.
@@ -35,7 +35,7 @@ public class RemoveAlarm extends AbstractShellCommand {
     private AlarmStore alarmStore = AbstractShellCommand.get(AlarmStore.class);
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         alarmStore.removeAlarm(AlarmId.alarmId(alarmId));
     }
 }

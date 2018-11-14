@@ -16,8 +16,9 @@
 package org.onosproject.workflow.cli;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import org.apache.karaf.shell.commands.Argument;
-import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.api.action.Argument;
+import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.workflow.api.DefaultWorkflowDescription;
 import org.onosproject.workflow.api.WorkflowException;
@@ -26,17 +27,18 @@ import org.onosproject.workflow.api.WorkflowService;
 import java.util.Arrays;
 import java.util.Objects;
 
+@Service
 @Command(scope = "onos", name = "workflow-test", description = "workflow test cli")
 public class WorkFlowTestCommand extends AbstractShellCommand {
 
-    @Argument (index = 0, name = "cmd", description = "command(invoke)", required = true)
+    @Argument(index = 0, name = "cmd", description = "command(invoke)", required = true)
     private String cmd = null;
 
     @Argument (index = 1, name = "number", description = "number of test", required = true)
     private String number = null;
 
     @Override
-    protected void execute() {
+    protected void doExecute() {
         if (Objects.isNull(cmd)) {
             error("invalid cmd parameter");
             return;
