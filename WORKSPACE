@@ -4,7 +4,7 @@ load("//tools/build/bazel:bazel_version.bzl", "check_bazel_version")
 
 check_bazel_version()
 
-load("//tools/build/bazel:local_jar.bzl", "local_atomix", "local_jar")
+load("//tools/build/bazel:local_jar.bzl", "local_atomix", "local_jar", "local_yang_tools")
 
 # Use this to build against locally built arbitrary 3rd party artifacts
 #local_jar(
@@ -16,6 +16,12 @@ load("//tools/build/bazel:local_jar.bzl", "local_atomix", "local_jar")
 #local_atomix(
 #    path = "/Users/tom/atomix",
 #    version = "3.0.8-SNAPSHOT",
+#)
+
+# Use this to build against locally built YANG tools
+#local_yang_tools(
+#    path = "/Users/andrea/onos-yang-tools",
+#    version = "2.6-SNAPSHOT",
 #)
 
 load("//tools/build/bazel:generate_workspace.bzl", "generated_maven_jars")
@@ -35,10 +41,12 @@ load("@io_grpc_grpc_java//:repositories.bzl", "grpc_java_repositories")
 grpc_java_repositories(
     omit_com_google_api_grpc_google_common_protos = True,
     omit_com_google_auth_google_auth_library_credentials = True,
+    omit_com_google_auth_google_auth_library_oauth2_http = True,
     omit_com_google_code_findbugs_jsr305 = True,
     omit_com_google_code_gson = True,
     omit_com_google_errorprone_error_prone_annotations = True,
     omit_com_google_guava = True,
+    omit_com_google_j2objc_j2objc_annotations = True,
     omit_com_google_protobuf = True,
     omit_com_google_protobuf_javalite = True,
     omit_com_google_protobuf_nano_protobuf_javanano = True,
@@ -72,15 +80,17 @@ load("//tools/build/bazel:gnmi_workspace.bzl", "generate_gnmi")
 
 generate_gnmi()
 
+load("//tools/build/bazel:gnoi_workspace.bzl", "generate_gnoi")
+
+generate_gnoi()
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
 git_repository(
     name = "build_bazel_rules_nodejs",
     remote = "https://github.com/bazelbuild/rules_nodejs.git",
-    tag = "0.11.5",  # check for the latest tag when you install
+    tag = "0.26.0",  # check for the latest tag when you install
 )
-
-load("@build_bazel_rules_nodejs//:package.bzl", "rules_nodejs_dependencies")
-
-rules_nodejs_dependencies()
 
 load("@build_bazel_rules_nodejs//:defs.bzl", "node_repositories")
 
@@ -95,13 +105,13 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 # See https://github.com/bazelbuild/rules_go for the up to date setup instructions.
 http_archive(
     name = "io_bazel_rules_go",
-    url = "https://github.com/bazelbuild/rules_go/releases/download/0.14.0/rules_go-0.14.0.tar.gz",
+    url = "https://github.com/bazelbuild/rules_go/releases/download/0.16.3/rules_go-0.16.3.tar.gz",
 )
 
 http_archive(
     name = "com_github_bazelbuild_buildtools",
-    strip_prefix = "buildtools-a90c3a9f00e27973d3e759d17f2e2e7d9702d91b",
-    url = "https://github.com/bazelbuild/buildtools/archive/a90c3a9f00e27973d3e759d17f2e2e7d9702d91b.zip",
+    strip_prefix = "buildtools-db073457c5a56d810e46efc18bb93a4fd7aa7b5e",
+    url = "https://github.com/bazelbuild/buildtools/archive/db073457c5a56d810e46efc18bb93a4fd7aa7b5e.zip",
 )
 
 load("@io_bazel_rules_go//go:def.bzl", "go_register_toolchains", "go_rules_dependencies")

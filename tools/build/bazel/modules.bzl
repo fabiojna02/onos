@@ -71,8 +71,6 @@ CORE = UTILS + API + [
     "//providers/general/device:onos-providers-general-device",
     "//providers/p4runtime/packet:onos-providers-p4runtime-packet",
     "//web/api:onos-rest",
-    "//web/gui2:onos-gui2",
-    "//web/gui:onos-gui",
     "//core/protobuf/models/proto:onos-core-protobuf-models-proto",
     "//core/protobuf/models:onos-core-protobuf-models",
 ]
@@ -106,9 +104,11 @@ ONOS_DRIVERS = [
     "//drivers/hp:onos-drivers-hp-oar",
     "//drivers/p4runtime:onos-drivers-p4runtime-oar",
     "//drivers/gnmi:onos-drivers-gnmi-oar",
+    "//drivers/gnoi:onos-drivers-gnoi-oar",
     "//drivers/polatis/netconf:onos-drivers-polatis-netconf-oar",
     "//drivers/polatis/openflow:onos-drivers-polatis-openflow-oar",
     "//drivers/odtn-driver:onos-drivers-odtn-driver-oar",
+    "//drivers/stratum:onos-drivers-stratum-oar",
 ]
 
 ONOS_PROVIDERS = [
@@ -159,6 +159,7 @@ ONOS_APPS = [
     "//apps/flowanalyzer:onos-apps-flowanalyzer-oar",
     "//apps/intentsync:onos-apps-intentsync-oar",
     "//apps/influxdbmetrics:onos-apps-influxdbmetrics-oar",
+    "//apps/l2lb:onos-apps-l2lb-oar",
     "//apps/metrics:onos-apps-metrics-oar",
     "//apps/mfwd:onos-apps-mfwd-oar",
     "//apps/mlb:onos-apps-mlb-oar",
@@ -199,6 +200,8 @@ ONOS_APPS = [
     "//apps/openstacktelemetry:onos-apps-openstacktelemetry-oar",
     "//apps/openstacktroubleshoot:onos-apps-openstacktroubleshoot-oar",
     "//apps/openstackvtap:onos-apps-openstackvtap-oar",
+    "//apps/k8s-node:onos-apps-k8s-node-oar",
+    "//apps/k8s-networking:onos-apps-k8s-networking-oar",
     "//apps/cpman/app:onos-apps-cpman-app-oar",
     "//apps/scalablegateway:onos-apps-scalablegateway-oar",
     "//apps/castor:onos-apps-castor-oar",
@@ -225,7 +228,6 @@ ONOS_APPS = [
     "//apps/l3vpn:onos-apps-l3vpn-oar",
     "//apps/openroadm:onos-apps-openroadm-oar",
     "//apps/artemis:onos-apps-artemis-oar",
-    "//apps/pi-demo/ecmp:onos-apps-pi-demo-ecmp-oar",
     "//apps/gluon:onos-apps-gluon-oar",
     "//apps/evpnopenflow:onos-apps-evpnopenflow-oar",
     "//apps/route-service:onos-apps-route-service-oar",
@@ -243,17 +245,22 @@ ONOS_APPS = [
     "//apps/odtn/service:onos-apps-odtn-service-oar",
     "//apps/mcast:onos-apps-mcast-oar",
     "//apps/layout:onos-apps-layout-oar",
+    "//apps/onlp-demo:onos-apps-onlp-demo-oar",
     "//apps/imr:onos-apps-imr-oar",
     "//apps/nodemetrics:onos-apps-nodemetrics-oar",
     "//apps/inbandtelemetry:onos-apps-inbandtelemetry-oar",
-    # "//web/gui2:onos-web-gui2-oar",
+    "//web/gui2:onos-web-gui2-oar",
+    "//web/gui:onos-web-gui-oar",
     "//apps/workflow:onos-apps-workflow-oar",
+    "//apps/workflow/ofoverlay:onos-apps-workflow-ofoverlay-oar",
+    "//apps/packet-throttle:onos-apps-packet-throttle-oar",
 ]
 
 PROTOCOL_APPS = [
     "//protocols/grpc:onos-protocols-grpc-oar",
     "//protocols/p4runtime:onos-protocols-p4runtime-oar",
     "//protocols/gnmi:onos-protocols-gnmi-oar",
+    "//protocols/gnoi:onos-protocols-gnoi-oar",
     "//protocols/xmpp/core:onos-protocols-xmpp-core-oar",
     "//protocols/xmpp/pubsub:onos-protocols-xmpp-pubsub-oar",
 ]
@@ -264,6 +271,7 @@ MODELS = [
     "//models/huawei:onos-models-huawei-oar",
     "//models/openconfig:onos-models-openconfig-oar",
     "//models/openconfig-infinera:onos-models-openconfig-infinera-oar",
+    "//models/openconfig-odtn:onos-models-openconfig-odtn-oar",
     "//models/openroadm:onos-models-openroadm-oar",
     "//models/tapi:onos-models-tapi-oar",
     "//models/l3vpn:onos-models-l3vpn-oar",
@@ -304,8 +312,6 @@ FEATURES = [
     "//tools/package/features:onos-core",
     "//tools/package/features:onos-cli",
     "//tools/package/features:onos-rest",
-    "//tools/package/features:onos-gui",
-    "//tools/package/features:onos-gui2",
     # "//tools/package/features:onos-security",
 ]
 

@@ -90,6 +90,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -102,6 +103,7 @@ import static org.onosproject.dhcprelay.OsgiPropertyConstants.DHCP_FPM_ENABLED;
 import static org.onosproject.dhcprelay.OsgiPropertyConstants.DHCP_FPM_ENABLED_DEFAULT;
 import static org.onosproject.dhcprelay.OsgiPropertyConstants.DHCP_POLL_INTERVAL;
 import static org.onosproject.dhcprelay.OsgiPropertyConstants.DHCP_POLL_INTERVAL_DEFAULT;
+import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onosproject.net.config.basics.SubjectFactories.APP_SUBJECT_FACTORY;
 
 /**
@@ -118,8 +120,9 @@ import static org.onosproject.net.config.basics.SubjectFactories.APP_SUBJECT_FAC
 )
 public class DhcpRelayManager implements DhcpRelayService {
     public static final String DHCP_RELAY_APP = "org.onosproject.dhcprelay";
-    public static final String ROUTE_STORE_IMPL =
-            "org.onosproject.routeservice.store.RouteStoreImpl";
+    public static final String ROUTE_STORE_IMPL = "org.onosproject.routeservice.store.RouteStoreImpl";
+
+    private static final int DEFAULT_POOL_SIZE = 32;
 
     private static final TrafficSelector ARP_SELECTOR = DefaultTrafficSelector.builder()
             .matchEthType(Ethernet.TYPE_ARP)
@@ -195,11 +198,11 @@ public class DhcpRelayManager implements DhcpRelayService {
     protected DhcpFpmPrefixStore dhcpFpmPrefixStore;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY,
-            target = "(version=4)")
+            target = "(_version=4)")
     protected DhcpHandler v4Handler;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY,
-            target = "(version=6)")
+            target = "(_version=6)")
     protected DhcpHandler v6Handler;
 
     /** Enable Address resolution protocol. */
@@ -212,6 +215,8 @@ public class DhcpRelayManager implements DhcpRelayService {
     protected boolean dhcpFpmEnabled = DHCP_FPM_ENABLED_DEFAULT;
 
     private ScheduledExecutorService timerExecutor;
+    protected ExecutorService devEventExecutor;
+    private ExecutorService packetExecutor;
 
     protected DeviceListener deviceListener = new InternalDeviceListener();
     private DhcpRelayPacketProcessor dhcpRelayPacketProcessor = new DhcpRelayPacketProcessor();
@@ -241,12 +246,13 @@ public class DhcpRelayManager implements DhcpRelayService {
         packetService.addProcessor(dhcpRelayPacketProcessor, PacketProcessor.director(0));
 
         timerExecutor = Executors.newScheduledThreadPool(1,
-                groupedThreads("dhcpRelay",
-                        "config-reloader-%d", log));
-        timerExecutor.scheduleAtFixedRate(new Dhcp6Timer(),
-                0,
-                dhcpPollInterval,
-                TimeUnit.SECONDS);
+                groupedThreads("onos/dhcprelay", "config-reloader-%d", log));
+        timerExecutor.scheduleAtFixedRate(new Dhcp6Timer(), 0, dhcpPollInterval, TimeUnit.SECONDS);
+        packetExecutor = Executors.newFixedThreadPool(DEFAULT_POOL_SIZE,
+                groupedThreads("onos/dhcprelay", "packet-%d", log));
+
+        devEventExecutor = newSingleThreadScheduledExecutor(
+                             groupedThreads("onos/dhcprelay-dev-events", "events-%d", log));
 
         modified(context);
 
@@ -256,8 +262,6 @@ public class DhcpRelayManager implements DhcpRelayService {
         compCfgService.registerProperties(getClass());
 
         deviceService.addListener(deviceListener);
-
-
 
         log.info("DHCP-RELAY Started");
     }
@@ -271,6 +275,11 @@ public class DhcpRelayManager implements DhcpRelayService {
         compCfgService.unregisterProperties(getClass(), false);
         deviceService.removeListener(deviceListener);
         timerExecutor.shutdown();
+        devEventExecutor.shutdownNow();
+        devEventExecutor = null;
+        packetExecutor.shutdown();
+        timerExecutor = null;
+        packetExecutor = null;
 
         log.info("DHCP-RELAY Stopped");
     }
@@ -497,9 +506,12 @@ public class DhcpRelayManager implements DhcpRelayService {
 
 
     private class DhcpRelayPacketProcessor implements PacketProcessor {
-
         @Override
         public void process(PacketContext context) {
+            packetExecutor.execute(() -> processInternal(context));
+        }
+
+        private void processInternal(PacketContext context) {
             // process the packet and get the payload
             Ethernet packet = context.inPacket().parsed();
             if (packet == null) {
@@ -624,17 +636,19 @@ public class DhcpRelayManager implements DhcpRelayService {
 
         @Override
         public void event(DeviceEvent event) {
+          if (devEventExecutor != null) {
             Device device = event.subject();
             switch (event.type()) {
                 case DEVICE_ADDED:
-                    updateIgnoreVlanConfigs();
+                    devEventExecutor.execute(this::updateIgnoreVlanConfigs);
                     break;
                 case DEVICE_AVAILABILITY_CHANGED:
-                    deviceAvailabilityChanged(device);
+                    devEventExecutor.execute(() -> deviceAvailabilityChanged(device));
                     break;
                 default:
                     break;
             }
+          }
         }
 
         private void deviceAvailabilityChanged(Device device) {

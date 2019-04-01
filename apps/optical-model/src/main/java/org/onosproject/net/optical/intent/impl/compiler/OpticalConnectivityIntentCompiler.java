@@ -19,6 +19,21 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.onosproject.net.ConnectPoint;
+import org.onosproject.net.GridType;
+import org.onosproject.net.OchSignal;
+import org.onosproject.net.Path;
+import org.onosproject.net.ChannelSpacing;
+import org.onosproject.net.Port;
+import org.onosproject.net.Link;
+import org.onosproject.net.DeviceId;
+import org.onosproject.net.Annotations;
+import org.onosproject.net.AnnotationKeys;
+import org.onosproject.net.DefaultAnnotations;
+import org.onosproject.net.DefaultPath;
+import org.onosproject.net.OchSignalType;
+import org.onosproject.net.DefaultOchSignalComparator;
+import org.onosproject.net.DefaultLink;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -26,21 +41,6 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.onlab.graph.ScalarWeight;
 import org.onlab.graph.Weight;
-import org.onosproject.net.AnnotationKeys;
-import org.onosproject.net.Annotations;
-import org.onosproject.net.ChannelSpacing;
-import org.onosproject.net.ConnectPoint;
-import org.onosproject.net.DefaultAnnotations;
-import org.onosproject.net.DefaultLink;
-import org.onosproject.net.DefaultOchSignalComparator;
-import org.onosproject.net.DefaultPath;
-import org.onosproject.net.DeviceId;
-import org.onosproject.net.GridType;
-import org.onosproject.net.Link;
-import org.onosproject.net.OchSignal;
-import org.onosproject.net.OchSignalType;
-import org.onosproject.net.Path;
-import org.onosproject.net.Port;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.intent.Intent;
 import org.onosproject.net.intent.IntentCompiler;
@@ -60,13 +60,13 @@ import org.onosproject.net.topology.TopologyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -139,8 +139,15 @@ public class OpticalConnectivityIntentCompiler implements IntentCompiler<Optical
         resources.add(srcPortResource);
         resources.add(dstPortResource);
 
+        // If there is a suggestedPath, use this path without further checking, otherwise trigger path computation
+        Stream<Path> paths;
+        if (intent.suggestedPath().isPresent()) {
+            paths = Stream.of(intent.suggestedPath().get());
+        } else {
+            paths = getOpticalPaths(intent);
+        }
+
         // Find first path that has the required resources
-        Stream<Path> paths = getOpticalPaths(intent);
         Optional<Map.Entry<Path, List<OchSignal>>> found = paths
                 .map(path -> Maps.immutableEntry(path, findFirstAvailableLambda(intent, path)))
                 .filter(entry -> !entry.getValue().isEmpty())
@@ -350,8 +357,16 @@ public class OpticalConnectivityIntentCompiler implements IntentCompiler<Optical
                 return ScalarWeight.NON_VIABLE_WEIGHT;
             }
 
+            /**
+             *
+             * @param edge edge to be weighed
+             * @return the metric retrieved from the annotations otherwise 1
+             */
             @Override
             public Weight weight(TopologyEdge edge) {
+
+                log.debug("Link {} metric {}", edge.link(), edge.link().annotations().value("metric"));
+
                 // Disregard inactive or non-optical links
                 if (edge.link().state() == Link.State.INACTIVE) {
                     return ScalarWeight.toWeight(-1);
@@ -375,7 +390,13 @@ public class OpticalConnectivityIntentCompiler implements IntentCompiler<Optical
                     }
                 }
 
-                return ScalarWeight.toWeight(1);
+                Annotations annotations = edge.link().annotations();
+                if (annotations != null && !annotations.value("metric").isEmpty()) {
+                    double metric = Double.parseDouble(annotations.value("metric"));
+                    return ScalarWeight.toWeight(metric);
+                } else {
+                    return ScalarWeight.toWeight(1);
+                }
             }
         };
 
@@ -418,6 +439,7 @@ public class OpticalConnectivityIntentCompiler implements IntentCompiler<Optical
                         return path;
                     });
         }
+
         return paths;
     }
 }

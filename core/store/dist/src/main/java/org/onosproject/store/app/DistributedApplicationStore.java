@@ -206,6 +206,7 @@ public class DistributedApplicationStore extends ApplicationArchive
         apps.addStatusChangeListener(statusChangeListener);
         coreAppId = getId(CoreService.CORE_APP_NAME);
 
+        downloadMissingApplications();
         activateExistingApplications();
         log.info("Started");
     }
@@ -240,6 +241,13 @@ public class DistributedApplicationStore extends ApplicationArchive
                 .build();
         }
         return app;
+    }
+
+    /**
+     * Downloads any missing bits for installed applications.
+     */
+    private void downloadMissingApplications() {
+        apps.asJavaMap().forEach((appId, holder) -> fetchBitsIfNeeded(holder.app));
     }
 
     /**
@@ -320,7 +328,12 @@ public class DistributedApplicationStore extends ApplicationArchive
                         .noneMatch(requiredApp -> loadFromDisk(requiredApp) == null);
                 pendingApps.remove(appName);
 
-                return success ? create(appDesc, false) : null;
+                if (success) {
+                    return create(appDesc, false);
+                } else {
+                    log.error("Unable to load dependencies for application {}", appName);
+                    return null;
+                }
 
             } catch (Exception e) {
                 log.warn("Unable to load application {} from disk: {}; retrying",
@@ -331,6 +344,7 @@ public class DistributedApplicationStore extends ApplicationArchive
             }
         }
         pendingApps.remove(appName);
+        log.error("Unable to load application {}", appName);
         return null;
     }
 

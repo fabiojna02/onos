@@ -24,7 +24,6 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.apache.karaf.features.Feature;
 import org.apache.karaf.features.FeaturesService;
-import org.onlab.util.SharedScheduledExecutors;
 import org.onosproject.cluster.ClusterAdminService;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
@@ -34,8 +33,12 @@ import org.osgi.service.component.runtime.dto.ComponentDescriptionDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
+import static org.onlab.util.Tools.groupedThreads;
 
 /**
  * Monitors the system to make sure that all bundles and their components
@@ -47,7 +50,8 @@ public class ComponentsMonitor {
 
     private Logger log = LoggerFactory.getLogger(getClass());
 
-    private static final long PERIOD = 2500;
+    private static final long STARTUP_PERIOD = 2500;
+    private static final long ACTIVE_PERIOD = 60000;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected FeaturesService featuresService;
@@ -59,25 +63,65 @@ public class ComponentsMonitor {
     protected ClusterAdminService clusterAdminService;
 
     private BundleContext bundleContext;
+
+    private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
+            groupedThreads("components-monitor", "%d", log));
     private ScheduledFuture<?> poller;
+    private boolean pollerBackedOff;
 
     @Activate
     protected void activate(ComponentContext context) {
         bundleContext = context.getBundleContext();
-        poller = SharedScheduledExecutors.getSingleThreadExecutor()
-                .scheduleAtFixedRate(this::checkStartedState, PERIOD,
-                                     PERIOD, TimeUnit.MILLISECONDS);
+        poller = executor.scheduleAtFixedRate(
+                this::checkStartedState, STARTUP_PERIOD, STARTUP_PERIOD, TimeUnit.MILLISECONDS);
         log.info("Started");
     }
 
     @Deactivate
     protected void deactivate() {
         poller.cancel(false);
+        executor.shutdownNow();
         log.info("Stopped");
     }
 
+    /**
+     * Increases the rate at which {@link #checkStartedState()} is called once the node has been fully started.
+     */
+    private void backoffPoller() {
+        if (!pollerBackedOff) {
+            poller.cancel(false);
+            poller = executor.scheduleAtFixedRate(
+                    this::checkStartedState, ACTIVE_PERIOD, ACTIVE_PERIOD, TimeUnit.MILLISECONDS);
+            pollerBackedOff = true;
+        }
+    }
+
+    /**
+     * Decreases the rate at which {@link #checkStartedState()} is called when the node becomes unready.
+     */
+    private void revertPoller() {
+        if (pollerBackedOff) {
+            poller.cancel(false);
+            poller = executor.scheduleAtFixedRate(
+                    this::checkStartedState, STARTUP_PERIOD, STARTUP_PERIOD, TimeUnit.MILLISECONDS);
+            pollerBackedOff = false;
+        }
+    }
+
+    /**
+     * Checks whether all components are active and marks the node READY if so.
+     */
     private void checkStartedState() {
-        clusterAdminService.markFullyStarted(isFullyStarted());
+        boolean isFullyStarted = isFullyStarted();
+        clusterAdminService.markFullyStarted(isFullyStarted);
+
+        // If the node is fully started, decrease the rate at which we poll component states.
+        // Otherwise, increase the rate at which we poll component states until the node becomes ready.
+        if (isFullyStarted) {
+            backoffPoller();
+        } else {
+            revertPoller();
+        }
     }
 
     /**
@@ -99,16 +143,26 @@ public class ComponentsMonitor {
         }
     }
 
+    private boolean needToCheck(Feature feature) {
+        // We only need to check core ONOS features, not external ones.
+        return feature.getId().startsWith("onos-") &&
+               !feature.getId().contains("thirdparty");
+    }
+
     private boolean isFullyStarted(Feature feature) {
-        try {
-            return feature.getBundles().stream()
+        if (needToCheck(feature)) {
+            try {
+                return feature.getBundles().stream()
                     .map(info -> bundleContext.getBundle())
                     .allMatch(this::isFullyStarted);
-        } catch (NullPointerException npe) {
-            // FIXME: Remove this catch block when Felix fixes the bug
-            // Due to a bug in the Felix implementation, this can throw an NPE.
-            // Catch the error and do something sensible with it.
-            return false;
+            } catch (NullPointerException npe) {
+                // FIXME: Remove this catch block when Felix fixes the bug
+                // Due to a bug in the Felix implementation, this can throw an NPE.
+                // Catch the error and do something sensible with it.
+                return false;
+            }
+        } else {
+            return true;
         }
     }
 

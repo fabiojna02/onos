@@ -16,9 +16,15 @@
 package org.onosproject.workflow.api;
 
 import com.google.common.base.MoreObjects;
+import org.onlab.osgi.DefaultServiceDirectory;
+import org.onlab.osgi.ServiceNotFoundException;
 import org.onosproject.event.Event;
 
 import java.net.URI;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.onosproject.workflow.api.CheckCondition.check;
 
 /**
  * Default implementation of WorkflowContext.
@@ -41,9 +47,9 @@ public class DefaultWorkflowContext extends WorkflowContext {
     private WorkflowState state;
 
     /**
-     * Current worklet of the workflow.
+     * Current program counter of the workflow.
      */
-    private String current;
+    private ProgramCounter current;
 
     /**
      * Cause of workflow exception.
@@ -56,9 +62,9 @@ public class DefaultWorkflowContext extends WorkflowContext {
     private transient Class<? extends Event> completionEventType;
 
     /**
-     * Completion event hint.
+     * Completion event hint Set.
      */
-    private transient String completionEventHint;
+    private transient Set<String> completionEventHintSet;
 
     /**
      * Completion event generator method reference.
@@ -87,16 +93,14 @@ public class DefaultWorkflowContext extends WorkflowContext {
 
     /**
      * Constructor of DefaultWorkflowContext.
-     * @param workflowId ID of workflow
-     * @param workplaceName name of workplace
-     * @param data data model tree
+     * @param builder default workflow context builder
      */
-    public DefaultWorkflowContext(URI workflowId, String workplaceName, DataModelTree data) {
-        super(data);
-        this.workflowId = workflowId;
-        this.workplaceName = workplaceName;
+    protected DefaultWorkflowContext(Builder builder) {
+        super(builder.data);
+        this.workflowId = builder.workflowId;
+        this.workplaceName = builder.workplaceName;
         this.state = WorkflowState.IDLE;
-        this.current = Worklet.Common.INIT.name();
+        this.current = ProgramCounter.INIT_PC;
     }
 
     /**
@@ -140,13 +144,13 @@ public class DefaultWorkflowContext extends WorkflowContext {
     }
 
     @Override
-    public String current() {
+    public ProgramCounter current() {
         return this.current;
     }
 
     @Override
-    public void setCurrent(Worklet worklet) {
-        this.current = worklet.tag();
+    public void setCurrent(ProgramCounter pc) {
+        this.current = pc;
     }
 
     @Override
@@ -168,7 +172,18 @@ public class DefaultWorkflowContext extends WorkflowContext {
     public void waitCompletion(Class<? extends Event> eventType, String eventHint,
                                WorkExecutor eventGenerator, long timeoutMs) {
         this.completionEventType = eventType;
-        this.completionEventHint = eventHint;
+        this.completionEventHintSet = new HashSet<>();
+        this.completionEventHintSet.add(eventHint);
+        this.completionEventGenerator = eventGenerator;
+        this.completionEventTimeoutMs = timeoutMs;
+    }
+
+    @Override
+    public void waitAnyCompletion(Class<? extends Event> eventType, Set<String> eventHint,
+                               WorkExecutor eventGenerator, long timeoutMs) {
+        this.completionEventType = eventType;
+        this.completionEventHintSet = new HashSet<>();
+        this.completionEventHintSet.addAll(eventHint);
         this.completionEventGenerator = eventGenerator;
         this.completionEventTimeoutMs = timeoutMs;
     }
@@ -184,8 +199,8 @@ public class DefaultWorkflowContext extends WorkflowContext {
     }
 
     @Override
-    public String completionEventHint() {
-        return completionEventHint;
+    public Set<String> completionEventHints() {
+        return completionEventHintSet;
     }
 
     @Override
@@ -228,6 +243,16 @@ public class DefaultWorkflowContext extends WorkflowContext {
         return workplaceStore;
     }
 
+    public <T> T getService(Class<T> serviceClass) throws WorkflowException {
+        T service;
+        try {
+            service = DefaultServiceDirectory.getService(serviceClass);
+        } catch (ServiceNotFoundException e) {
+            throw new WorkflowException(e);
+        }
+        return service;
+    }
+
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(getClass())
@@ -238,5 +263,76 @@ public class DefaultWorkflowContext extends WorkflowContext {
                 .add("state", state())
                 .add("cause", cause())
                 .toString();
+    }
+
+    /**
+     * Gets builder instance.
+     * @return builder instance
+     */
+    public static final Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Builder for default workflow context.
+     */
+    public static class Builder {
+
+        /**
+         * ID of workflow.
+         */
+        private URI workflowId;
+
+        /**
+         * Workplace name of the workflow.
+         */
+        private String workplaceName;
+
+        /**
+         * Data model tree.
+         */
+        private DataModelTree data;
+
+        /**
+         * Sets workflow id.
+         * @param workflowId workflow id
+         * @return builder
+         */
+        public Builder workflowId(URI workflowId) {
+            this.workflowId = workflowId;
+            return this;
+        }
+
+        /**
+         * Sets workplace name.
+         * @param workplaceName workplace name
+         * @return builder
+         */
+        public Builder workplaceName(String workplaceName) {
+            this.workplaceName = workplaceName;
+            return this;
+        }
+
+        /**
+         * Sets data model tree.
+         * @param data data model tree
+         * @return builder
+         */
+        public Builder data(DataModelTree data) {
+            this.data = data;
+            return this;
+        }
+
+        /**
+         * Builds default workflow context.
+         * @return instance of default workflow context
+         * @throws WorkflowException workflow exception
+         */
+        public DefaultWorkflowContext build() throws WorkflowException {
+            check(data != null, "Invalid data model tree");
+            check(workflowId != null, "Invalid workflowId");
+            check(workplaceName != null, "Invalid workplaceName");
+            return new DefaultWorkflowContext(this);
+        }
     }
 }

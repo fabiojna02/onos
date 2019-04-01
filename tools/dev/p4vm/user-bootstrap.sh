@@ -1,22 +1,25 @@
 #!/bin/bash
 set -xe
 
+ONOS_BRANCH=${1:-master}
+
 cp /etc/skel/.bashrc ~/
 cp /etc/skel/.profile ~/
 cp /etc/skel/.bash_logout ~/
 
 # ONOS
-git clone https://github.com/opennetworkinglab/onos.git
+git clone https://github.com/opennetworkinglab/onos.git -b ${ONOS_BRANCH}
 tee -a ~/.bashrc <<EOF
 
 # ONOS
 export ONOS_ROOT=~/onos
 source ~/onos/tools/dev/bash_profile
 source ~/onos/tools/dev/p4vm/bm-commands.sh
+export BMV2_INSTALL=/usr/local
 EOF
 
 # Build and install P4 tools
-bash /vagrant/install-p4-tools.sh
+DEBUG_FLAGS=true FAST_BUILD=true bash /vagrant/install-p4-tools.sh
 # We'll delete bmv2 sources later...
 cp ~/p4tools/bmv2/tools/veth_setup.sh ~/veth_setup.sh
 cp ~/p4tools/bmv2/tools/veth_teardown.sh ~/veth_teardown.sh
@@ -49,8 +52,4 @@ sudo /etc/init.d/apparmor start
 git clone https://github.com/opennetworkinglab/fabric-p4test.git
 
 # Set Python path for bmv2 in fabric.p4
-echo 'export PYTHONPATH=$PYTHONPATH:~/onos/tools/dev/mininet/bmv2.py' >> ~/.bashrc
-
-# FIXME: for some reason protobuf python bindings are not properly installed
-cd ~/p4tools/protobuf/python
-sudo pip install .
+echo 'export PYTHONPATH=$PYTHONPATH:$ONOS_ROOT/tools/dev/mininet' >> ~/.bashrc

@@ -16,33 +16,21 @@
 
 package org.onosproject.drivers.p4runtime.mirror;
 
-import org.onlab.util.KryoNamespace;
-import org.onosproject.net.pi.runtime.PiActionGroupMember;
-import org.onosproject.net.pi.runtime.PiActionGroupMemberHandle;
-import org.onosproject.store.serializers.KryoNamespaces;
+import org.onosproject.net.pi.runtime.PiActionProfileMember;
+import org.onosproject.net.pi.runtime.PiActionProfileMemberHandle;
+import org.onosproject.net.pi.runtime.PiEntityType;
 import org.osgi.service.component.annotations.Component;
 
 /**
  * Distributed implementation of a P4Runtime action profile member mirror.
  */
-@Component(immediate = true, service = AbstractDistributedP4RuntimeMirror.class)
+@Component(immediate = true, service = P4RuntimeActionProfileMemberMirror.class)
 public class DistributedP4RuntimeActionProfileMemberMirror
         extends AbstractDistributedP4RuntimeMirror
-        <PiActionGroupMemberHandle, PiActionGroupMember>
+        <PiActionProfileMemberHandle, PiActionProfileMember>
         implements P4RuntimeActionProfileMemberMirror {
 
-    private static final String DIST_MAP_NAME = "onos-p4runtime-act-prof-member-mirror";
-
-    @Override
-    String mapName() {
-        return DIST_MAP_NAME;
-    }
-
-    @Override
-    KryoNamespace storeSerializer() {
-        return KryoNamespace.newBuilder()
-                .register(KryoNamespaces.API)
-                .register(TimedEntry.class)
-                .build();
+    public DistributedP4RuntimeActionProfileMemberMirror() {
+        super(PiEntityType.ACTION_PROFILE_MEMBER);
     }
 }

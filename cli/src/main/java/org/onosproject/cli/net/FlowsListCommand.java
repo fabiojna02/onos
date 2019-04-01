@@ -42,7 +42,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +67,7 @@ public class FlowsListCommand extends AbstractShellCommand {
 
     private static final String LONG_FORMAT = "    id=%s, state=%s, bytes=%s, "
             + "packets=%s, duration=%s, liveType=%s, priority=%s, tableId=%s, appId=%s, "
-            + "payLoad=%s, selector=%s, treatment=%s";
+            + "selector=%s, treatment=%s";
 
     private static final String SHORT_FORMAT = "    %s, bytes=%s, packets=%s, "
             + "table=%s, priority=%s, selector=%s, treatment=%s";
@@ -127,12 +126,15 @@ public class FlowsListCommand extends AbstractShellCommand {
         compilePredicate();
 
         if (countOnly && !suppressCoreOutput && filter.isEmpty() && remove == null) {
-            if (uri == null) {
+            if (state == null && uri == null) {
                 deviceService.getDevices().forEach(device -> printCount(device, service));
+            } else if (uri == null) {
+                deviceService.getDevices()
+                        .forEach(device -> printCount(device, FlowEntryState.valueOf(state.toUpperCase()), service));
             } else {
                 Device device = deviceService.getDevice(DeviceId.deviceId(uri));
                 if (device != null) {
-                    printCount(device, service);
+                    printCount(device, FlowEntryState.valueOf(state.toUpperCase()), service);
                 }
             }
             return;
@@ -301,6 +303,10 @@ public class FlowsListCommand extends AbstractShellCommand {
         print("deviceId=%s, flowRuleCount=%d", device.id(), flowRuleService.getFlowRuleCount(device.id()));
     }
 
+    private void printCount(Device device, FlowEntryState state, FlowRuleService flowRuleService) {
+        print("deviceId=%s, flowRuleCount=%d", device.id(), flowRuleService.getFlowRuleCount(device.id(), state));
+    }
+
     /**
      * Prints flows.
      *
@@ -327,7 +333,6 @@ public class FlowsListCommand extends AbstractShellCommand {
                 print(LONG_FORMAT, Long.toHexString(f.id().value()), f.state(),
                         f.bytes(), f.packets(), f.life(), f.liveType(), f.priority(), f.table(),
                         appId != null ? appId.name() : "<none>",
-                        f.payLoad() == null ? null : Arrays.toString(f.payLoad().payLoad()),
                         f.selector().criteria(), f.treatment());
             }
         }

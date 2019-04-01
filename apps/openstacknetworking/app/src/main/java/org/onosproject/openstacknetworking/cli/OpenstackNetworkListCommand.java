@@ -45,14 +45,14 @@ public class OpenstackNetworkListCommand extends AbstractShellCommand {
 
     @Override
     protected void doExecute() {
-        OpenstackNetworkService service = AbstractShellCommand.get(OpenstackNetworkService.class);
+        OpenstackNetworkService service = get(OpenstackNetworkService.class);
         List<Network> networks = Lists.newArrayList(service.networks());
         networks.sort(Comparator.comparing(Network::getName));
 
         if (outputJson()) {
             print("%s", json(networks));
         } else {
-            print(FORMAT, "ID", "Name", "Network Mode", "SegId", "Subnets", "HostRoutes");
+            print(FORMAT, "ID", "Name", "Type", "SegId", "Subnets", "HostRoutes");
             for (Network net: networks) {
                 List<Subnet> subnets = service.subnets().stream()
                         .filter(subnet -> subnet.getNetworkId().equals(net.getId()))
@@ -70,7 +70,7 @@ public class OpenstackNetworkListCommand extends AbstractShellCommand {
 
                 print(FORMAT, net.getId(),
                         net.getName(),
-                        net.getNetworkType().toString(),
+                        service.networkType(net.getId()).toString(),
                         net.getProviderSegID(),
                         subnets.isEmpty() ? "" : subnetsString,
                         hostRoutes.isEmpty() ? "" : hostRoutes);

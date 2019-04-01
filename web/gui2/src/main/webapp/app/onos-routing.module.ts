@@ -15,6 +15,7 @@
  */
 import { NgModule } from '@angular/core';
 import { Routes, RouterModule } from '@angular/router';
+import { Gui2TopoLibModule } from 'gui2-topo-lib';
 import { FmGui2LibModule } from 'fm-gui2-lib';
 
 /**
@@ -78,18 +79,18 @@ const onosRoutes: Routes = [
         path: 'meter',
         loadChildren: 'app/view/meter/meter.module#MeterModule'
     },
+    /*  Comment out below section for running locally with 'ng serve' when developing */
     {
         path: 'topo2',
-        loadChildren: 'app/view/topology/topology.module#TopologyModule'
+        loadChildren: 'gui2-topo-lib#Gui2TopoLibModule'
     },
-/*  Comment out below section for running locally with 'ng serve' when developing */
     {
         path: 'alarmTable',
         loadChildren: 'fm-gui2-lib#FmGui2LibModule'
     },
     {
         path: '',
-        redirectTo: 'device', // Default to devices view - change to topo in future
+        redirectTo: 'topo2', // Default to Topology view
         pathMatch: 'full'
     }
 ];

@@ -18,6 +18,7 @@ package org.onosproject.workflow.api;
 import org.onosproject.event.Event;
 
 import java.net.URI;
+import java.util.Set;
 
 /**
  * An abstract class representing WorkflowContext.
@@ -57,16 +58,16 @@ public abstract class WorkflowContext extends WorkflowData {
     public abstract void setState(WorkflowState state);
 
     /**
-     * Sets the current worklet of workflow context.
-     * @param worklet current worklet
+     * Sets the current program counter of workflow context.
+     * @param pc current program counter
      */
-    public abstract void setCurrent(Worklet worklet);
+    public abstract void setCurrent(ProgramCounter pc);
 
     /**
-     * Returns the class name of current worklet.
-     * @return the class name of current worklet
+     * Returns the current program counter of workflow.
+     * @return the current program counter of workflow
      */
-    public abstract String current();
+    public abstract ProgramCounter current();
 
     /**
      * Returns the cause string of exception state.
@@ -98,6 +99,20 @@ public abstract class WorkflowContext extends WorkflowData {
     public abstract void waitCompletion(Class<? extends Event> eventType, String eventHint,
                                         WorkExecutor eventGenerator, long timeoutMs);
 
+
+    /**
+     * Waits an event which has any one of eventHint from Set 'eventHintSet' after executing executor.
+     * If the event happens, Worklet.isCompleted will be called.
+     * If the event does not happen for timeoutMs, Worklet.timeout will be called.
+     * @param eventType the class of event to wait
+     * @param eventHintSet the Set of eventHints of the event to wait
+     * @param eventGenerator a method reference to be executed after executing executor
+     * @param timeoutMs timeout millisecond
+     */
+    public abstract void waitAnyCompletion(Class<? extends Event> eventType, Set<String> eventHintSet,
+                                           WorkExecutor eventGenerator, long timeoutMs);
+
+
     /**
      * Waits timeout milliseconds. After timeoutMs Worklet.timeout will be called.
      * @param timeoutMs timeout millisecond
@@ -111,10 +126,10 @@ public abstract class WorkflowContext extends WorkflowData {
     public abstract Class<? extends Event> completionEventType();
 
     /**
-     * Returns the event hint string to wait.
-     * @return the event hint string
+     * Returns the set of event hint string to wait.
+     * @return the event hint string set
      */
-    public abstract String completionEventHint();
+    public abstract Set<String> completionEventHints();
 
     /**
      * Returns method reference for generating completion event.
@@ -163,4 +178,13 @@ public abstract class WorkflowContext extends WorkflowData {
      * @return workplace store
      */
     public abstract WorkplaceStore workplaceStore();
+
+    /**
+     * Get service.
+     * @param serviceClass service class
+     * @param <T> service class type
+     * @return service reference
+     * @throws WorkflowException workflow exception
+     */
+    public abstract <T> T getService(Class<T> serviceClass) throws WorkflowException;
 }

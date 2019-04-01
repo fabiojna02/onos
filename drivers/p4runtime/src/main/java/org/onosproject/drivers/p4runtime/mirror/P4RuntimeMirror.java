@@ -21,9 +21,9 @@ import org.onosproject.net.Annotations;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.pi.runtime.PiEntity;
 import org.onosproject.net.pi.runtime.PiHandle;
+import org.onosproject.p4runtime.api.P4RuntimeWriteClient;
 
 import java.util.Collection;
-import java.util.Map;
 
 /**
  * Service to keep track of the device state for a given class of PI entities.
@@ -77,8 +77,8 @@ public interface P4RuntimeMirror
     /**
      * Stores the given annotations associating it to the given handle.
      *
-     * @param handle handle
-     * @param annotations  entry
+     * @param handle      handle
+     * @param annotations entry
      */
     void putAnnotations(H handle, Annotations annotations);
 
@@ -92,10 +92,27 @@ public interface P4RuntimeMirror
     Annotations annotations(H handle);
 
     /**
-     * Synchronizes the state of the given device ID with the given handle map.
+     * Synchronizes the state of the given device ID with the given collection
+     * of PI entities.
      *
-     * @param deviceId  device ID
-     * @param handleMap handle map
+     * @param deviceId device ID
+     * @param entities collection of PI entities
      */
-    void sync(DeviceId deviceId, Map<H, E> handleMap);
+    void sync(DeviceId deviceId, Collection<E> entities);
+
+    /**
+     * Uses the given P4Runtime write request to update the state of this
+     * mirror by optimistically assuming that all updates in it will succeed.
+     *
+     * @param request P4Runtime write request
+     */
+    void applyWriteRequest(P4RuntimeWriteClient.WriteRequest request);
+
+    /**
+     * Uses the given P4Runtime write response to update the state of this
+     * mirror.
+     *
+     * @param response P4Runtime write response
+     */
+    void applyWriteResponse(P4RuntimeWriteClient.WriteResponse response);
 }

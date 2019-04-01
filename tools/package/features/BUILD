@@ -20,9 +20,14 @@ osgi_feature(
         "@io_netty_netty//jar",
         "@io_netty_netty_common//jar",
         "@io_netty_netty_buffer//jar",
-        "@io_netty_netty_transport//jar",
         "@io_netty_netty_handler//jar",
+        "@io_netty_netty_tcnative_boringssl//jar",
         "@io_netty_netty_codec//jar",
+        "@io_netty_netty_codec_http//jar",
+        "@io_netty_netty_codec_http2//jar",
+        "@io_netty_netty_codec_socks//jar",
+        "@io_netty_netty_handler_proxy//jar",
+        "@io_netty_netty_transport//jar",
         "@io_netty_netty_transport_native_epoll//jar",
         "@io_netty_netty_transport_native_unix_common//jar",
         "@io_netty_netty_resolver//jar",
@@ -43,6 +48,7 @@ osgi_feature(
         "@commons_collections//jar",
         "@concurrent_trees//jar",
         "@commons_io//jar",
+        "@commons_jxpath//jar",
         "@mapdb//jar",
         "@bcpkix_jdk15on//jar",
         "@bcprov_jdk15on//jar",
@@ -51,6 +57,7 @@ osgi_feature(
         "@sigar//jar",
         "@org_osgi_util_function//jar",
         "@org_osgi_util_promise//jar",
+        "@jaxb_api//jar",
     ],
     required_features = [],
     visibility = ["//visibility:public"],
@@ -137,30 +144,6 @@ osgi_feature(
         "//cli:onos-cli",
     ],
     required_features = ["onos-api"],
-    visibility = ["//visibility:public"],
-)
-
-osgi_feature(
-    name = "onos-gui",
-    description = "ONOS GUI console components",
-    included_bundles = [
-        "//web/gui:onos-gui",
-    ],
-    required_features = [
-        "onos-api",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osgi_feature(
-    name = "onos-gui2",
-    description = "ONOS GUI2 components",
-    included_bundles = [
-        "//web/gui2:onos-gui2",
-    ],
-    required_features = [
-        "onos-api",
-    ],
     visibility = ["//visibility:public"],
 )
 

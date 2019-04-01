@@ -20,7 +20,6 @@ import com.google.common.collect.Maps;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
 import io.netty.util.internal.StringUtil;
-import org.onlab.packet.ChassisId;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.ONOSLLDP;
@@ -29,7 +28,6 @@ import org.onlab.util.Tools;
 import org.onosproject.net.AnnotationKeys;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.DefaultAnnotations;
-import org.onosproject.net.DefaultPort;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Link.Type;
@@ -47,6 +45,7 @@ import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -73,7 +72,7 @@ public class LinkDiscovery implements TimerTask {
 
     private final Logger log = getLogger(getClass());
 
-    private final Device device;
+    private final DeviceId deviceId;
     private final LinkDiscoveryContext context;
 
     private final Ethernet ethPacket;
@@ -89,11 +88,11 @@ public class LinkDiscovery implements TimerTask {
      * generic LLDP packet that will be customized for the port it is sent out on.
      * Starts the the timer for the discovery process.
      *
-     * @param device  the physical switch
+     * @param deviceId  the physical switch
      * @param context discovery context
      */
-    public LinkDiscovery(Device device, LinkDiscoveryContext context) {
-        this.device = device;
+    public LinkDiscovery(DeviceId deviceId, LinkDiscoveryContext context) {
+        this.deviceId = deviceId;
         this.context = context;
 
         ethPacket = new Ethernet();
@@ -108,7 +107,7 @@ public class LinkDiscovery implements TimerTask {
 
         isStopped = true;
         start();
-        log.debug("Started discovery manager for switch {}", device.id());
+        log.debug("Started discovery manager for switch {}", deviceId);
 
     }
 
@@ -150,9 +149,9 @@ public class LinkDiscovery implements TimerTask {
         boolean newPort = !containsPort(portNum);
         portMap.put(portNum, portName);
 
-        boolean isMaster = context.mastershipService().isLocalMaster(device.id());
+        boolean isMaster = context.mastershipService().isLocalMaster(deviceId);
         if (newPort && isMaster) {
-            log.debug("Sending initial probe to port {}@{}", port.number().toLong(), device.id());
+            log.debug("Sending initial probe to port {}@{}", port.number().toLong(), deviceId);
             sendProbes(portNum, portName);
         }
     }
@@ -220,18 +219,18 @@ public class LinkDiscovery implements TimerTask {
 
             String idString = onoslldp.getDeviceString();
             if (!isNullOrEmpty(idString)) {
-                DeviceId srcDeviceId = DeviceId.deviceId(idString);
-                DeviceId dstDeviceId = packetContext.inPacket().receivedFrom().deviceId();
-
-                ConnectPoint src = new ConnectPoint(srcDeviceId, srcPort);
-                ConnectPoint dst = new ConnectPoint(dstDeviceId, dstPort);
-
-                LinkDescription ld = new DefaultLinkDescription(src, dst, lt);
                 try {
+                    DeviceId srcDeviceId = DeviceId.deviceId(idString);
+                    DeviceId dstDeviceId = packetContext.inPacket().receivedFrom().deviceId();
+
+                    ConnectPoint src = new ConnectPoint(srcDeviceId, srcPort);
+                    ConnectPoint dst = new ConnectPoint(dstDeviceId, dstPort);
+
+                    LinkDescription ld = new DefaultLinkDescription(src, dst, lt);
                     context.providerService().linkDetected(ld);
                     context.touchLink(LinkKey.linkKey(src, dst));
-                } catch (IllegalStateException e) {
-                    log.debug("There is a exception during link creation: {}", e);
+                } catch (IllegalStateException | IllegalArgumentException e) {
+                    log.warn("There is a exception during link creation: {}", e.getMessage());
                     return true;
                 }
                 return true;
@@ -279,6 +278,12 @@ public class LinkDiscovery implements TimerTask {
 
             DeviceId srcDeviceId = srcDevice.get().id();
             DeviceId dstDeviceId = packetContext.inPacket().receivedFrom().deviceId();
+
+            if (!sourcePort.get().isEnabled()) {
+                log.debug("Ports are disabled. Cannot create a link between {}/{} and {}/{}",
+                        srcDeviceId, sourcePort.get(), dstDeviceId, dstPort);
+                return false;
+            }
 
             ConnectPoint src = new ConnectPoint(srcDeviceId, srcPort);
             ConnectPoint dst = new ConnectPoint(dstDeviceId, dstPort);
@@ -331,20 +336,18 @@ public class LinkDiscovery implements TimerTask {
     private Optional<Port> findSourcePortByName(String remotePortName,
                                                 DeviceService deviceService,
                                                 Device remoteDevice) {
+        if (remotePortName == null) {
+            return Optional.empty();
+        }
         Optional<Port> remotePort = deviceService.getPorts(remoteDevice.id())
-                .stream().filter(port -> remotePortName.equals(port.annotations().value(AnnotationKeys.PORT_NAME)))
+                .stream().filter(port -> Objects.equals(remotePortName,
+                                                        port.annotations().value(AnnotationKeys.PORT_NAME)))
                 .findAny();
 
         if (remotePort.isPresent()) {
             return remotePort;
         } else {
-            int portNumber = Integer.parseInt(remotePortName.replaceAll("\\D+", ""));
-            DefaultAnnotations.Builder annotations = DefaultAnnotations.builder()
-                    .set(AnnotationKeys.PORT_NAME, remotePortName);
-
-            return Optional.of(new DefaultPort(remoteDevice, PortNumber.portNumber(portNumber),
-                    true,
-                    annotations.build()));
+            return Optional.empty();
         }
     }
 
@@ -371,8 +374,8 @@ public class LinkDiscovery implements TimerTask {
             return;
         }
 
-        if (context.mastershipService().isLocalMaster(device.id())) {
-            log.trace("Sending probes from {}", device.id());
+        if (context.mastershipService().isLocalMaster(deviceId)) {
+            log.trace("Sending probes from {}", deviceId);
             ImmutableMap.copyOf(portMap).forEach(this::sendProbes);
         }
 
@@ -392,10 +395,14 @@ public class LinkDiscovery implements TimerTask {
         if (portNumber == null) {
             return null;
         }
-        ONOSLLDP lldp = getLinkProbe(context.deviceService().getDevice(device.id()).chassisId(),
-                portNumber, portDesc);
+        ONOSLLDP lldp = getLinkProbe(portNumber, portDesc);
+        if (lldp == null) {
+            log.warn("Cannot get link probe with portNumber {} and portDesc {} for {} at LLDP packet creation.",
+                    portNumber, portDesc, deviceId);
+            return null;
+        }
         ethPacket.setSourceMACAddress(context.fingerprint()).setPayload(lldp);
-        return new DefaultOutboundPacket(device.id(),
+        return new DefaultOutboundPacket(deviceId,
                                          builder().setOutput(portNumber(portNumber)).build(),
                                          ByteBuffer.wrap(ethPacket.serialize()));
     }
@@ -411,16 +418,25 @@ public class LinkDiscovery implements TimerTask {
         if (portNumber == null) {
             return null;
         }
-        ONOSLLDP lldp = getLinkProbe(context.deviceService().getDevice(device.id()).chassisId(),
-                portNumber, portDesc);
+        ONOSLLDP lldp = getLinkProbe(portNumber, portDesc);
+        if (lldp == null) {
+            log.warn("Cannot get link probe with portNumber {} and portDesc {} for {} at BDDP packet creation.",
+                    portNumber, portDesc, deviceId);
+            return null;
+        }
         bddpEth.setSourceMACAddress(context.fingerprint()).setPayload(lldp);
-        return new DefaultOutboundPacket(device.id(),
+        return new DefaultOutboundPacket(deviceId,
                                          builder().setOutput(portNumber(portNumber)).build(),
                                          ByteBuffer.wrap(bddpEth.serialize()));
     }
 
-    private ONOSLLDP getLinkProbe(ChassisId chassisId, Long portNumber, String portDesc) {
-        return ONOSLLDP.onosSecureLLDP(device.id().toString(), chassisId, portNumber.intValue(),
+    private ONOSLLDP getLinkProbe(Long portNumber, String portDesc) {
+        Device device = context.deviceService().getDevice(deviceId);
+        if (device == null) {
+            log.warn("Cannot find the device {}", deviceId);
+            return null;
+        }
+        return ONOSLLDP.onosSecureLLDP(deviceId.toString(), device.chassisId(), portNumber.intValue(), portDesc,
                                        context.lldpSecret());
     }
 
@@ -428,12 +444,20 @@ public class LinkDiscovery implements TimerTask {
         if (context.packetService() == null) {
             return;
         }
-        log.trace("Sending probes out of {}@{}", portNumber, device.id());
+        log.trace("Sending probes out of {}@{}", portNumber, deviceId);
         OutboundPacket pkt = createOutBoundLldp(portNumber, portDesc);
-        context.packetService().emit(pkt);
+        if (pkt != null) {
+            context.packetService().emit(pkt);
+        } else {
+            log.warn("Cannot send lldp packet due to packet is null {}", deviceId);
+        }
         if (context.useBddp()) {
             OutboundPacket bpkt = createOutBoundBddp(portNumber, portDesc);
-            context.packetService().emit(bpkt);
+            if (bpkt != null) {
+                context.packetService().emit(bpkt);
+            } else {
+                log.warn("Cannot send bddp packet due to packet is null {}", deviceId);
+            }
         }
     }
 

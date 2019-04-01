@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package protocols.gnmi.ctl.java.org.onosproject.gnmi.ctl;
+
+package org.onosproject.gnmi.ctl;
 
 import io.grpc.ManagedChannel;
 import org.onosproject.gnmi.api.GnmiClient;
@@ -22,36 +23,24 @@ import org.onosproject.gnmi.api.GnmiController;
 import org.onosproject.gnmi.api.GnmiEvent;
 import org.onosproject.gnmi.api.GnmiEventListener;
 import org.onosproject.grpc.ctl.AbstractGrpcClientController;
-import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.slf4j.Logger;
-
-import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Implementation of gNMI controller.
  */
 @Component(immediate = true, service = GnmiController.class)
 public class GnmiControllerImpl
-        extends AbstractGrpcClientController<GnmiClientKey, GnmiClient, GnmiEvent, GnmiEventListener>
+        extends AbstractGrpcClientController
+        <GnmiClientKey, GnmiClient, GnmiEvent, GnmiEventListener>
         implements GnmiController {
-    private final Logger log = getLogger(getClass());
 
-    @Activate
-    public void activate() {
-        super.activate();
-        log.info("Started");
-    }
-
-    @Deactivate
-    public void deactivate() {
-        super.deactivate();
-        log.info("Stopped");
+    public GnmiControllerImpl() {
+        super(GnmiEvent.class);
     }
 
     @Override
-    protected GnmiClient createClientInstance(GnmiClientKey clientKey, ManagedChannel channel) {
-        return new GnmiClientImpl(clientKey, channel);
+    protected GnmiClient createClientInstance(
+            GnmiClientKey clientKey, ManagedChannel channel) {
+        return new GnmiClientImpl(clientKey, channel, this);
     }
 }

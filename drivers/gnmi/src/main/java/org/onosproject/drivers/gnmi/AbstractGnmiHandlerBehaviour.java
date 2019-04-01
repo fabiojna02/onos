@@ -16,34 +16,26 @@
 
 package org.onosproject.drivers.gnmi;
 
-import io.grpc.StatusRuntimeException;
+import com.google.common.base.Strings;
 import org.onosproject.gnmi.api.GnmiClient;
 import org.onosproject.gnmi.api.GnmiClientKey;
 import org.onosproject.gnmi.api.GnmiController;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
+import org.onosproject.net.config.NetworkConfigService;
+import org.onosproject.net.config.basics.BasicDeviceConfig;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.driver.AbstractHandlerBehaviour;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  * Abstract implementation of a behaviour handler for a gNMI device.
  */
 public class AbstractGnmiHandlerBehaviour extends AbstractHandlerBehaviour {
-
-    // Default timeout in seconds for device operations.
-    private static final String DEVICE_REQ_TIMEOUT = "deviceRequestTimeout";
-    private static final int DEFAULT_DEVICE_REQ_TIMEOUT = 60;
-
-    public static final String GNMI_SERVER_ADDR_KEY = "gnmi_ip";
-    public static final String GNMI_SERVER_PORT_KEY = "gnmi_port";
-    private static final String GNMI_SERVICE_NAME = "gnmi";
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
     protected DeviceId deviceId;
@@ -54,7 +46,7 @@ public class AbstractGnmiHandlerBehaviour extends AbstractHandlerBehaviour {
 
     protected boolean setupBehaviour() {
         deviceId = handler().data().deviceId();
-
+        deviceService = handler().get(DeviceService.class);
         controller = handler().get(GnmiController.class);
         client = controller.getClient(deviceId);
 
@@ -66,86 +58,32 @@ public class AbstractGnmiHandlerBehaviour extends AbstractHandlerBehaviour {
         return true;
     }
 
-    protected GnmiClient createClient() {
+    GnmiClient getClientByKey() {
+        final GnmiClientKey clientKey = clientKey();
+        if (clientKey == null) {
+            return null;
+        }
+        return handler().get(GnmiController.class).getClient(clientKey);
+    }
+
+    protected GnmiClientKey clientKey() {
         deviceId = handler().data().deviceId();
-        controller = handler().get(GnmiController.class);
 
-        final String serverAddr = this.data().value(GNMI_SERVER_ADDR_KEY);
-        final String serverPortString = this.data().value(GNMI_SERVER_PORT_KEY);
-
-        if (serverAddr == null || serverPortString == null) {
-            log.warn("Unable to create client for {}, missing driver data key (required is {}, {}, and {})",
-                    deviceId, GNMI_SERVER_ADDR_KEY, GNMI_SERVER_PORT_KEY);
+        final BasicDeviceConfig cfg = handler().get(NetworkConfigService.class)
+                .getConfig(deviceId, BasicDeviceConfig.class);
+        if (cfg == null || Strings.isNullOrEmpty(cfg.managementAddress())) {
+            log.error("Missing or invalid config for {}, cannot derive " +
+                              "gNMI server endpoints", deviceId);
             return null;
         }
 
-        final int serverPort;
         try {
-            serverPort = Integer.parseUnsignedInt(serverPortString);
-        } catch (NumberFormatException e) {
-            log.error("{} is not a valid gNMI port number", serverPortString);
+            return new GnmiClientKey(
+                    deviceId, new URI(cfg.managementAddress()));
+        } catch (URISyntaxException e) {
+            log.error("Management address of {} is not a valid URI: {}",
+                      deviceId, cfg.managementAddress());
             return null;
         }
-        GnmiClientKey clientKey =
-                new GnmiClientKey(GNMI_SERVICE_NAME, deviceId, serverAddr, serverPort);
-        if (!controller.createClient(clientKey)) {
-            log.warn("Unable to create client for {}, aborting operation", deviceId);
-            return null;
-        }
-        return controller.getClient(deviceId);
-    }
-
-    /**
-     * Returns the device request timeout driver property, or a default value
-     * if the property is not present or cannot be parsed.
-     *
-     * @return timeout value
-     */
-    private int getDeviceRequestTimeout() {
-        final String timeout = handler().driver()
-                .getProperty(DEVICE_REQ_TIMEOUT);
-        if (timeout == null) {
-            return DEFAULT_DEVICE_REQ_TIMEOUT;
-        } else {
-            try {
-                return Integer.parseInt(timeout);
-            } catch (NumberFormatException e) {
-                log.error("{} driver property '{}' is not a number, using default value {}",
-                        DEVICE_REQ_TIMEOUT, timeout, DEFAULT_DEVICE_REQ_TIMEOUT);
-                return DEFAULT_DEVICE_REQ_TIMEOUT;
-            }
-        }
-    }
-
-    /**
-     * Convenience method to get the result of a completable future while
-     * setting a timeout and checking for exceptions.
-     *
-     * @param future        completable future
-     * @param opDescription operation description to use in log messages. Should
-     *                      be a sentence starting with a verb ending in -ing,
-     *                      e.g. "reading...", "writing...", etc.
-     * @param defaultValue  value to return if operation fails
-     * @param <U>           type of returned value
-     * @return future result or default value
-     */
-    <U> U getFutureWithDeadline(CompletableFuture<U> future, String opDescription,
-                                U defaultValue) {
-        try {
-            return future.get(getDeviceRequestTimeout(), TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            log.error("Exception while {} on {}", opDescription, deviceId);
-        } catch (ExecutionException e) {
-            final Throwable cause = e.getCause();
-            if (cause instanceof StatusRuntimeException) {
-                final StatusRuntimeException grpcError = (StatusRuntimeException) cause;
-                log.warn("Error while {} on {}: {}", opDescription, deviceId, grpcError.getMessage());
-            } else {
-                log.error("Exception while {} on {}", opDescription, deviceId, e.getCause());
-            }
-        } catch (TimeoutException e) {
-            log.error("Operation TIMEOUT while {} on {}", opDescription, deviceId);
-        }
-        return defaultValue;
     }
 }

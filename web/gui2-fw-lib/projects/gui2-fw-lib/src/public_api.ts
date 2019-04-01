@@ -36,7 +36,7 @@ export * from './lib/layer/panel.service';
 export * from './lib/svg/svgutil.service';
 export * from './lib/svg/glyphdata.service';
 export * from './lib/svg/glyph.service';
-export * from './lib/svg/zoom.service';
+export * from './lib/svg/zoomutils';
 
 export * from './lib/util/prefs.service';
 export * from './lib/util/fn.service';
@@ -49,6 +49,7 @@ export * from './lib/mast/mast/mast.component';
 export * from './lib/layer/veil/veil.component';
 export * from './lib/layer/flash/flash.component';
 export * from './lib/layer/confirm/confirm.component';
+export * from './lib/layer/quickhelp/quickhelp.component';
 export * from './lib/svg/icon/icon.component';
 
 export * from './lib/widget/tableresize.directive';

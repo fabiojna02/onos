@@ -16,6 +16,7 @@
 package org.onosproject.workflow.api;
 
 import java.util.Date;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -29,6 +30,13 @@ public class TimerChain {
 
     private Timer impendingTimer;
     private TimerChainTask impendingTask;
+
+    /**
+     * Constructor of timer chain.
+     */
+    public TimerChain() {
+
+    }
 
     /**
      * Schedules timer event.
@@ -54,7 +62,7 @@ public class TimerChain {
      */
     private void schedule(TimerChainTask task) {
         synchronized (this) {
-            if (taskQueue.size() == 0) {
+            if (taskQueue.isEmpty()) {
                 scheduleImpending(task);
                 return;
             }
@@ -123,7 +131,7 @@ public class TimerChain {
      * @return timer chain task
      */
     public TimerChainTask head() {
-        if (taskQueue.size() > 0) {
+        if (!taskQueue.isEmpty()) {
             return taskQueue.peek();
         } else {
             return null;
@@ -135,7 +143,7 @@ public class TimerChain {
      * @return timer chain task
      */
     public TimerChainTask pop() {
-        if (taskQueue.size() > 0) {
+        if (!taskQueue.isEmpty()) {
             return taskQueue.poll();
         } else {
             return null;
@@ -185,7 +193,6 @@ public class TimerChain {
             TimerChainTask nextTask;
             synchronized (timerchain) {
                 if (timerchain.impendingTask() != this) {
-                    System.out.println("Invalid impendingTask");
                     runnable().run();
                     return;
                 }
@@ -210,6 +217,24 @@ public class TimerChain {
         @Override
         public int compareTo(TimerChainTask target) {
             return date().compareTo(target.date());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof TimerChainTask)) {
+                return false;
+            }
+            TimerChainTask that = (TimerChainTask) o;
+
+            return this.date().equals(that.date());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(date);
         }
 
         /**

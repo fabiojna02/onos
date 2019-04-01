@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.onosproject.workflow.api.CheckCondition.check;
+
 /**
  * Class for immutable list workflow.
  */
@@ -49,8 +51,11 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
      */
     private Set<WorkflowAttribute> attributes;
 
+    private static JsonDataModelInjector dataModelInjector = new JsonDataModelInjector();
+
     /**
      * Constructor of ImmutableListWorkflow.
+     *
      * @param builder builder of ImmutableListWorkflow
      */
     private ImmutableListWorkflow(Builder builder) {
@@ -71,10 +76,14 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
 
 
     @Override
-    public Worklet next(WorkflowContext context) throws WorkflowException {
+    public ProgramCounter next(WorkflowContext context) throws WorkflowException {
 
         int cnt = 0;
-        for (int i = 0; i < workletTypeList.size(); i++) {
+
+        ProgramCounter pc = context.current();
+        check(pc != null, "Invalid program counter");
+
+        for (int i = pc.workletIndex(); i < workletTypeList.size(); i++) {
 
             if (cnt++ > Worklet.MAX_WORKS) {
                 throw new WorkflowException("Maximum worklet execution exceeded");
@@ -83,7 +92,7 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
             String workletType = workletTypeList.get(i);
 
             if (Worklet.Common.COMPLETED.tag().equals(workletType)) {
-                return Worklet.Common.COMPLETED;
+                return ProgramCounter.valueOf(workletType, i);
             }
 
             if (Worklet.Common.INIT.tag().equals(workletType)) {
@@ -109,20 +118,42 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
                 continue;
 
             } else {
+                // isNext is read only. It does not perform 'inhale'.
+                dataModelInjector.inject(worklet, context);
                 if (worklet.isNext(context)) {
-                    return worklet;
+                    return ProgramCounter.valueOf(workletType, i);
                 }
             }
         }
-        return Worklet.Common.COMPLETED;
+        throw new WorkflowException("workflow reached to end but not COMPLETED");
+    }
+
+    @Override
+    public ProgramCounter increased(ProgramCounter pc) throws WorkflowException {
+
+        int increaedIndex = pc.workletIndex() + 1;
+        if (increaedIndex >= workletTypeList.size()) {
+            throw new WorkflowException("Out of bound in program counter(" + pc + ")");
+        }
+
+        String workletType = workletTypeList.get(increaedIndex);
+        return ProgramCounter.valueOf(workletType, increaedIndex);
     }
 
     @Override
     public Worklet getWorkletInstance(String workletType) throws WorkflowException {
 
+        if (Worklet.Common.INIT.tag().equals(workletType)) {
+            return Worklet.Common.INIT;
+        }
+
+        if (Worklet.Common.COMPLETED.tag().equals(workletType)) {
+            return Worklet.Common.COMPLETED;
+        }
+
         WorkflowStore store;
         try {
-             store = DefaultServiceDirectory.getService(WorkflowStore.class);
+            store = DefaultServiceDirectory.getService(WorkflowStore.class);
         } catch (ServiceNotFoundException e) {
             throw new WorkflowException(e);
         }
@@ -153,8 +184,14 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
         return ImmutableSet.copyOf(attributes);
     }
 
+    @Override
+    public List<String> getWorkletTypeList() {
+        return ImmutableList.copyOf(workletTypeList);
+    }
+
     /**
      * Gets index of class in worklet type list.
+     *
      * @param aClass class to get index
      * @return index of class in worklet type list
      */
@@ -169,6 +206,7 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
 
     /**
      * Checks whether class is allowed class or not.
+     *
      * @param clazz class to check
      * @return Check result
      */
@@ -219,6 +257,7 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
 
     /**
      * Gets a instance of builder.
+     *
      * @return instance of builder
      */
     public static Builder builder() {
@@ -237,6 +276,7 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
 
         /**
          * Sets id of immutable list workflow.
+         *
          * @param uri id of immutable list workflow
          * @return builder
          */
@@ -248,6 +288,7 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
 
         /**
          * Sets init worklet class name of immutable list workflow.
+         *
          * @param workletClassName class name of worklet
          * @return builder
          */
@@ -258,6 +299,7 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
 
         /**
          * Chains worklet class name of immutable list workflow.
+         *
          * @param workletClassName class name of worklet
          * @return builder
          */
@@ -268,6 +310,7 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
 
         /**
          * Adds workflow attribute.
+         *
          * @param attribute workflow attribute to be added
          * @return builder
          */
@@ -278,6 +321,7 @@ public final class ImmutableListWorkflow extends AbstractWorkflow {
 
         /**
          * Builds ImmutableListWorkflow.
+         *
          * @return instance of ImmutableListWorkflow
          */
         public ImmutableListWorkflow build() {

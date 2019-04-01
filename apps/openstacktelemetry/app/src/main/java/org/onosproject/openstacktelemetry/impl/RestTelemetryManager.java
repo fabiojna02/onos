@@ -15,8 +15,11 @@
  */
 package org.onosproject.openstacktelemetry.impl;
 
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.onosproject.openstacktelemetry.api.OpenstackTelemetryService;
 import org.onosproject.openstacktelemetry.api.RestTelemetryAdminService;
+import org.onosproject.openstacktelemetry.api.TelemetryConfigService;
 import org.onosproject.openstacktelemetry.api.config.RestTelemetryConfig;
 import org.onosproject.openstacktelemetry.api.config.TelemetryConfig;
 import org.osgi.service.component.annotations.Activate;
@@ -32,6 +35,14 @@ import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Response;
+import java.util.Map;
+import java.util.Set;
+
+import static org.onosproject.openstacktelemetry.api.Constants.REST_SCHEME;
+import static org.onosproject.openstacktelemetry.api.config.TelemetryConfig.ConfigType.REST;
+import static org.onosproject.openstacktelemetry.api.config.TelemetryConfig.Status.ENABLED;
+import static org.onosproject.openstacktelemetry.config.DefaultRestTelemetryConfig.fromTelemetryConfig;
+import static org.onosproject.openstacktelemetry.util.OpenstackTelemetryUtil.testConnectivity;
 
 /**
  * REST telemetry manager.
@@ -48,8 +59,10 @@ public class RestTelemetryManager implements RestTelemetryAdminService {
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackTelemetryService openstackTelemetryService;
 
-    private WebTarget target = null;
-    private RestTelemetryConfig restConfig = null;
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected TelemetryConfigService telemetryConfigService;
+
+    private Map<String, WebTarget> targets = Maps.newConcurrentMap();
 
     @Activate
     protected void activate() {
@@ -61,7 +74,7 @@ public class RestTelemetryManager implements RestTelemetryAdminService {
 
     @Deactivate
     protected void deactivate() {
-        stop();
+        stopAll();
 
         openstackTelemetryService.removeTelemetryService(this);
 
@@ -69,85 +82,104 @@ public class RestTelemetryManager implements RestTelemetryAdminService {
     }
 
     @Override
-    public void start(TelemetryConfig config) {
-        if (target != null) {
-            log.info("REST producer has already been started");
-            return;
-        }
+    public void startAll() {
 
-        restConfig = (RestTelemetryConfig) config;
-
-        StringBuilder restServerBuilder = new StringBuilder();
-        restServerBuilder.append(PROTOCOL);
-        restServerBuilder.append(":");
-        restServerBuilder.append("//");
-        restServerBuilder.append(restConfig.address());
-        restServerBuilder.append(":");
-        restServerBuilder.append(restConfig.port());
-        restServerBuilder.append("/");
-
-        Client client = ClientBuilder.newBuilder().build();
-
-        target = client.target(restServerBuilder.toString()).path(restConfig.endpoint());
+        telemetryConfigService.getConfigsByType(REST).forEach(c -> start(c.name()));
 
         log.info("REST producer has Started");
     }
 
     @Override
-    public void stop() {
-        if (target != null) {
-            target = null;
-        }
-
+    public void stopAll() {
+        targets.values().forEach(t -> t = null);
         log.info("REST producer has Stopped");
     }
 
     @Override
-    public void restart(TelemetryConfig config) {
-        stop();
-        start(config);
+    public void restartAll() {
+        stopAll();
+        startAll();
     }
 
     @Override
-    public Response publish(String endpoint, String method, String record) {
-        // TODO: need to find a way to invoke REST endpoint using target
-        return null;
-    }
+    public Set<Response> publish(String record) {
 
-    @Override
-    public Response publish(String method, String record) {
-        switch (method) {
-            case POST_METHOD:
-                return target.request(restConfig.requestMediaType())
-                        .post(Entity.json(record));
-            case GET_METHOD:
-                return target.request(restConfig.requestMediaType()).get();
-            default:
-                return null;
-        }
-    }
+        Set<Response> responses = Sets.newConcurrentHashSet();
 
-    @Override
-    public Response publish(String record) {
+        targets.forEach((k, v) -> {
+            TelemetryConfig config = telemetryConfigService.getConfig(k);
+            RestTelemetryConfig restConfig = fromTelemetryConfig(config);
 
-        if (target == null) {
-            log.debug("REST telemetry service has not been enabled!");
-            return null;
-        }
+            switch (restConfig.method()) {
+                case POST_METHOD:
+                    responses.add(v.request(restConfig.requestMediaType())
+                            .post(Entity.json(record)));
+                    break;
+                case GET_METHOD:
+                    responses.add(v.request(restConfig.requestMediaType()).get());
+                    break;
+                default:
+                    break;
+            }
+        });
 
-        switch (restConfig.method()) {
-            case POST_METHOD:
-                return target.request(restConfig.requestMediaType())
-                        .post(Entity.json(record));
-            case GET_METHOD:
-                return target.request(restConfig.requestMediaType()).get();
-            default:
-                return null;
-        }
+        return responses;
     }
 
     @Override
     public boolean isRunning() {
-        return target != null;
+        return !targets.isEmpty();
+    }
+
+    @Override
+    public boolean start(String name) {
+        boolean success = false;
+        TelemetryConfig config = telemetryConfigService.getConfig(name);
+        RestTelemetryConfig restConfig = fromTelemetryConfig(config);
+
+        if (restConfig != null && !config.name().equals(REST_SCHEME) &&
+                config.status() == ENABLED) {
+            StringBuilder restServerBuilder = new StringBuilder();
+            restServerBuilder.append(PROTOCOL);
+            restServerBuilder.append(":");
+            restServerBuilder.append("//");
+            restServerBuilder.append(restConfig.address());
+            restServerBuilder.append(":");
+            restServerBuilder.append(restConfig.port());
+            restServerBuilder.append("/");
+
+            if (testConnectivity(restConfig.address(), restConfig.port())) {
+                Client client = ClientBuilder.newBuilder().build();
+
+                WebTarget target = client.target(
+                        restServerBuilder.toString()).path(restConfig.endpoint());
+
+                targets.put(config.name(), target);
+
+                success = true;
+            } else {
+                log.warn("Unable to connect to {}:{}, " +
+                                "please check the connectivity manually",
+                                restConfig.address(), restConfig.port());
+            }
+        }
+
+        return success;
+    }
+
+    @Override
+    public void stop(String name) {
+        WebTarget target = targets.get(name);
+
+        if (target != null) {
+            target = null;
+            targets.remove(name);
+        }
+    }
+
+    @Override
+    public boolean restart(String name) {
+        stop(name);
+        return start(name);
     }
 }

@@ -20,21 +20,23 @@ import com.google.common.annotations.Beta;
 import org.onosproject.grpc.api.GrpcClientKey;
 import org.onosproject.net.DeviceId;
 
+import java.net.URI;
+
 /**
  * Key that uniquely identifies a gNMI client.
  */
 @Beta
 public class GnmiClientKey extends GrpcClientKey {
 
+    private static final String GNMI = "gNMI";
+
     /**
      * Creates a new gNMI client key.
      *
-     * @param serviceName gNMI service name of the client
-     * @param deviceId    ONOS device ID
-     * @param serverAddr  gNMI server address
-     * @param serverPort  gNMI server port
+     * @param deviceId  ONOS device ID
+     * @param serverUri gNMI server URI
      */
-    public GnmiClientKey(String serviceName, DeviceId deviceId, String serverAddr, int serverPort) {
-        super(serviceName, deviceId, serverAddr, serverPort);
+    public GnmiClientKey(DeviceId deviceId, URI serverUri) {
+        super(GNMI, deviceId, serverUri);
     }
 }

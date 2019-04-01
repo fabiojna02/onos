@@ -39,14 +39,17 @@ public final class Constants {
     public static final String PORT_NAME_PREFIX_VM = "tap";
     public static final String PORT_NAME_VHOST_USER_PREFIX_VM = "vhu";
 
-    public static final String OPENSTACK_NETWORKING_APP_ID = "org.onosproject.openstacknetworking";
+    public static final String OPENSTACK_NETWORKING_APP_ID =
+                                            "org.onosproject.openstacknetworking";
 
     public static final String ARP_BROADCAST_MODE = "broadcast";
     public static final String ARP_PROXY_MODE = "proxy";
 
     public static final String DEFAULT_GATEWAY_MAC_STR = "fe:00:00:00:00:02";
-    public static final MacAddress DEFAULT_GATEWAY_MAC = MacAddress.valueOf(DEFAULT_GATEWAY_MAC_STR);
-    public static final MacAddress DEFAULT_EXTERNAL_ROUTER_MAC = MacAddress.valueOf("fe:00:00:00:00:01");
+    public static final MacAddress DEFAULT_GATEWAY_MAC =
+                                            MacAddress.valueOf(DEFAULT_GATEWAY_MAC_STR);
+    public static final MacAddress DEFAULT_EXTERNAL_ROUTER_MAC =
+                                            MacAddress.valueOf("fe:00:00:00:00:01");
 
     public static final String PCI_VENDOR_INFO = "pci_vendor_info";
     public static final String DIRECT = "direct";
@@ -75,6 +78,7 @@ public final class Constants {
     public static final int PRIORITY_DHCP_RULE = 42000;
     public static final int PRIORITY_ADMIN_RULE = 32000;
     public static final int PRIORITY_ACL_RULE = 31000;
+    public static final int PRIORITY_ACL_INGRESS_RULE = 30000;
     public static final int PRIORITY_CT_HOOK_RULE = 30500;
     public static final int PRIORITY_CT_RULE = 32000;
     public static final int PRIORITY_CT_DROP_RULE = 32500;
@@ -98,8 +102,10 @@ public final class Constants {
     public static final int FLAT_TABLE = 20;
     public static final int VTAG_TABLE = 30;
     public static final int ARP_TABLE = 35;
-    public static final int ACL_TABLE = 40;
-    public static final int CT_TABLE = 41;
+    public static final int ACL_EGRESS_TABLE = 40;
+    public static final int ACL_INGRESS_TABLE = 44;
+    public static final int CT_TABLE = 45;
+    public static final int ACL_RECIRC_TABLE = 43;
     public static final int JUMP_TABLE = 50;
     public static final int ROUTING_TABLE = 60;
     public static final int STAT_OUTBOUND_TABLE = 70;
@@ -113,6 +119,13 @@ public final class Constants {
     public static final int VTAP_INBOUND_GROUP_TABLE = 1;
     public static final int VTAP_FLAT_OUTBOUND_GROUP_TABLE = 2;
     public static final int VTAP_OUTBOUND_GROUP_TABLE = 3;
+
+    // network type
+    public static final String VXLAN = "VXLAN";
+    public static final String VLAN = "VLAN";
+    public static final String FLAT = "FLAT";
+    public static final String GRE = "GRE";
+    public static final String GENEVE = "GENEVE";
 
     public static Map<String, String> portNamePrefixMap() {
         return PORT_NAME_PREFIX_MAP;
