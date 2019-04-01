@@ -170,7 +170,6 @@ genrule(
     srcs = [
         "@nodejs//:bin/npm",
         "@nodejs//:bin/node",
-        "@nodejs//:bin/node.js",
         "@nodejs//:bin/nodejs/bin/node",
         "@nodejs//:bin/nodejs/bin/npm",
         ":_root_level_files",
@@ -205,7 +204,6 @@ genrule(
     srcs = [
         "@nodejs//:bin/npm",
         "@nodejs//:bin/node",
-        "@nodejs//:bin/node.js",
         "@nodejs//:bin/nodejs/bin/node",
         "@nodejs//:bin/nodejs/bin/npm",
         ":onos-gui2-fw-npm-install",
@@ -254,10 +252,10 @@ genrule(
     srcs = [
         "@nodejs//:bin/npm",
         "@nodejs//:bin/node",
-        "@nodejs//:bin/node.js",
         "@nodejs//:bin/nodejs/bin/node",
         "@nodejs//:bin/nodejs/bin/npm",
         ":onos-gui2-fw-npm-install",
+        "//web/gui:onos-gui-data-for-gui2",
         ":_root_level_files",
         ":_gui2_fw_lib_src",
         ":_gui2_fw_lib_tests",
@@ -277,12 +275,21 @@ genrule(
           " cd web/gui2-fw-lib &&" +
           " jar xf ../../$(location :_gui2_fw_lib_tests) &&" +
           " jar xf $$ROOT/$${INSTALL_FILES[0]} &&" +
+          # next 2 lines needed for png file referenced from mast.component.css
+          " unzip -q $$ROOT/$(location //web/gui:onos-gui-data-for-gui2) web/gui/src/main/webapp/data/img/dropdown-icon.png &&" +
+          " mv web/gui/src/main/webapp/data projects/gui2-fw-lib/src/lib/mast/mast/ &&" +
           " chmod +x $$ROOT/web/gui2-fw-lib/node_modules/@angular/cli/bin/ng &&" +
           " export PATH=$$ROOT/$$(dirname $${NODE}):$$ROOT/web/gui2-fw-lib/node_modules/@angular/cli/bin:$$PATH &&" +
           " node -v > ../../$(location onos-gui2-fw-ng-ver.log) &&" +
           " npm -v >> ../../$(location onos-gui2-fw-ng-ver.log) &&" +
-          " ng version >> ../../$(location onos-gui2-fw-ng-ver.log) &&" +
-          " ng lint gui2-fw-lib > ../../$(location onos-gui2-fw-ng-lint.log);" +
+          " ng version >> ../../$(location onos-gui2-fw-ng-ver.log);" +
+          " ng lint gui2-fw-lib > ../../$(location onos-gui2-fw-ng-lint.log) 2>&1 ||" +
+          " if [ $$? -eq 0 ]; then echo 'Successfully ran lint';" +
+          " else " +
+          "   echo 'Error running \'ng lint\' on \'//web/gui2-fw-lib:_onos-gui2-fw-ng-test\'. \\\n" +
+          "     See bazel-genfiles/web/gui2-fw-lib/onos-gui2-fw-ng-lint.log for more details' >&2;" +
+          "   exit 1;" +
+          " fi;" +
           " if [ -f /usr/bin/chromium-browser ]; then " +  # Add to this for Mac and Chrome
           "   export CHROME_BIN=/usr/bin/chromium-browser; " +
           " elif [ -f /opt/google/chrome/chrome ]; then " +

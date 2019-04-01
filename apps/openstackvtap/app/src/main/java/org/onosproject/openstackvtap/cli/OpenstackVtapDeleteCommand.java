@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 package org.onosproject.openstackvtap.cli;
+import org.apache.karaf.shell.api.action.Argument;
 import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
 import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
-import org.apache.karaf.shell.api.action.Argument;
 import org.onosproject.openstackvtap.api.OpenstackVtap;
 import org.onosproject.openstackvtap.api.OpenstackVtapAdminService;
 import org.onosproject.openstackvtap.api.OpenstackVtapId;
@@ -34,6 +35,7 @@ public class OpenstackVtapDeleteCommand extends AbstractShellCommand {
 
     @Argument(index = 0, name = "id", description = "vtap ID",
             required = true, multiValued = false)
+    @Completion(VtapIdCompleter.class)
     String vtapId = "";
 
     @Override

@@ -1,6 +1,6 @@
 # First stage is the build environment
-FROM sgrio/java-oracle:jdk_8 as builder
-MAINTAINER Jonathan Hart <jono@opennetworking.org>
+FROM picoded/ubuntu-openjdk-8-jdk as builder
+MAINTAINER Ray Milkey <ray@opennetworking.org>
 
 # Set the environment variables
 ENV HOME /root
@@ -17,12 +17,10 @@ COPY . /src/onos/
 # build problems
 WORKDIR /src/onos
 RUN apt-get update && apt-get install -y zip python git bzip2 build-essential && \
-        curl -L -o bazel.sh https://github.com/bazelbuild/bazel/releases/download/0.19.0/bazel-0.19.0-installer-linux-x86_64.sh && \
+        curl -L -o bazel.sh https://github.com/bazelbuild/bazel/releases/download/0.23.0/bazel-0.23.0-installer-linux-x86_64.sh && \
         chmod +x bazel.sh && \
         ./bazel.sh --user && \
         export ONOS_ROOT=/src/onos && \
-        ln -s /usr/lib/jvm/java-8-oracle/bin/jar /etc/alternatives/jar && \
-        ln -s /etc/alternatives/jar /usr/bin/jar && \
         ~/bin/bazel build onos --verbose_failures --jobs 2 && \
         mkdir -p /src/tar && \
         cd /src/tar && \
@@ -30,12 +28,10 @@ RUN apt-get update && apt-get install -y zip python git bzip2 build-essential &&
         rm -rf /src/onos/bazel-* .git
 
 # Second stage is the runtime environment
-FROM anapsix/alpine-java:8_server-jre
+FROM adoptopenjdk/openjdk11:x86_64-ubuntu-jdk-11.0.1.13-slim
 
 # Change to /root directory
-RUN apk update && \
-        apk add curl && \
-        mkdir -p /root/onos
+RUN     mkdir -p /root/onos
 WORKDIR /root/onos
 
 # Install ONOS

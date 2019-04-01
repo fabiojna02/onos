@@ -19,12 +19,11 @@ package org.onosproject.grpc.api;
 import com.google.common.annotations.Beta;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import org.onosproject.net.DeviceId;
+import io.grpc.StatusRuntimeException;
 
-import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Abstraction of a gRPC controller that stores and manages gRPC channels.
@@ -35,27 +34,30 @@ public interface GrpcChannelController {
     int CONNECTION_TIMEOUT_SECONDS = 20;
 
     /**
-     * Creates a gRPC managed channel from the given builder and opens a
-     * connection to it. If the connection is successful returns the managed
-     * channel object and stores the channel internally, associated with the
-     * given channel ID.
+     * Creates a gRPC managed channel from the given builder and opens the
+     * connection. If the connection is successful, returns the managed channel
+     * object and stores the channel internally, associated with the given
+     * channel ID.
      * <p>
      * This method blocks until the channel is open or a timeout expires. By
      * default the timeout is {@link #CONNECTION_TIMEOUT_SECONDS} seconds. If
-     * the timeout expires, a IOException is thrown.
+     * the timeout expires, a {@link StatusRuntimeException} is thrown. If
+     * another channel with the same ID already exists, an {@link
+     * IllegalArgumentException} is thrown.
      *
      * @param channelId      ID of the channel
      * @param channelBuilder builder of the managed channel
      * @return the managed channel created
-     * @throws IOException if the channel cannot be opened
+     * @throws StatusRuntimeException   if the channel cannot be opened
+     * @throws IllegalArgumentException if a channel with the same ID already
+     *                                  exists
      */
     ManagedChannel connectChannel(GrpcChannelId channelId,
-                                  ManagedChannelBuilder<?> channelBuilder)
-            throws IOException;
+                                  ManagedChannelBuilder<?> channelBuilder);
 
     /**
      * Closes the gRPC managed channel (i.e., disconnects from the gRPC server)
-     * and removed the channel from this controller.
+     * and removes any internal state associated to it.
      *
      * @param channelId ID of the channel to remove
      */
@@ -71,24 +73,6 @@ public interface GrpcChannelController {
     Map<GrpcChannelId, ManagedChannel> getChannels();
 
     /**
-     * Returns true if the channel associated with the given identifier is open,
-     * i.e. the server is able to successfully replies to RPCs, false
-     * otherwise.
-     *
-     * @param channelId channel ID
-     * @return true if channel is open, false otherwise.
-     */
-    boolean isChannelOpen(GrpcChannelId channelId);
-
-    /**
-     * Returns all channel associated to the given device ID.
-     *
-     * @param deviceId device ID
-     * @return collection of channels
-     */
-    Collection<ManagedChannel> getChannels(DeviceId deviceId);
-
-    /**
      * If present, returns the channel associated with the given ID.
      *
      * @param channelId channel ID
@@ -96,4 +80,14 @@ public interface GrpcChannelController {
      */
     Optional<ManagedChannel> getChannel(GrpcChannelId channelId);
 
+    /**
+     * Probes the server at the endpoint of the given channel. Returns true if
+     * the server responded to the probe, false otherwise or if the channel does
+     * not exist.
+     *
+     * @param channelId channel ID
+     * @return completable future eventually true if the gRPC server responded
+     * to the probe; false otherwise
+     */
+    CompletableFuture<Boolean> probeChannel(GrpcChannelId channelId);
 }

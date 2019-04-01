@@ -57,6 +57,9 @@ import org.onosproject.openstacknetworking.api.InstancePortService;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkService;
 import org.onosproject.openstacknode.api.OpenstackNode;
 import org.onosproject.openstacknode.api.OpenstackNodeService;
+import org.onosproject.openstacktelemetry.api.DefaultFlowInfo;
+import org.onosproject.openstacktelemetry.api.DefaultStatsFlowRule;
+import org.onosproject.openstacktelemetry.api.DefaultStatsInfo;
 import org.onosproject.openstacktelemetry.api.FlowInfo;
 import org.onosproject.openstacktelemetry.api.OpenstackTelemetryService;
 import org.onosproject.openstacktelemetry.api.StatsFlowRule;
@@ -138,7 +141,7 @@ public class StatsFlowRuleManager implements StatsFlowRuleAdminService {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    private static final byte FLOW_TYPE_SONA = 1; // VLAN
+    private static final byte FLOW_TYPE_SONA = 1;
 
     private static final long MILLISECONDS = 1000L;
     private static final long INITIAL_DELAY = 5L;
@@ -260,16 +263,6 @@ public class StatsFlowRuleManager implements StatsFlowRuleAdminService {
         log.info("Stop data publishing thread");
         result.cancel(true);
         collector = null;
-    }
-
-    @Override
-    public void setStatFlowL2Rule(String srcIp, String dstIp, Boolean install) {
-        StatsFlowRule statsFlowRule = DefaultStatsFlowRule.builder()
-                .srcIpPrefix(IpPrefix.valueOf(IpAddress.valueOf(srcIp), ARBITRARY_LENGTH))
-                .dstIpPrefix(IpPrefix.valueOf(IpAddress.valueOf(dstIp), ARBITRARY_LENGTH))
-                .ipProtocol((byte) ARBITRARY_PROTOCOL)
-                .build();
-        setStatFlowRule(statsFlowRule, install);
     }
 
     @Override
@@ -438,8 +431,10 @@ public class StatsFlowRuleManager implements StatsFlowRuleAdminService {
 
             stats.forEach(s -> {
                 InstancePort instPort = getInstancePort(d, s.portNumber());
-                flowInfos.add(buildTxFlowInfoFromInstancePort(instPort, s));
-                flowInfos.add(buildRxFlowInfoFromInstancePort(instPort, s));
+                if (instPort != null) {
+                    flowInfos.add(buildTxFlowInfoFromInstancePort(instPort, s));
+                    flowInfos.add(buildRxFlowInfoFromInstancePort(instPort, s));
+                }
             });
         });
 
@@ -592,7 +587,7 @@ public class StatsFlowRuleManager implements StatsFlowRuleAdminService {
                 .withSrcMac(macAddress)
                 .withDstMac(NO_HOST_MAC)
                 .withDeviceId(deviceId)
-                .withInputInterfaceId(ARBITRARY_IN_INTF)
+                .withInputInterfaceId(getInterfaceId(ipAddress))
                 .withOutputInterfaceId(ARBITRARY_OUT_INTF)
                 .withVlanId(VlanId.vlanId());
 
@@ -701,6 +696,8 @@ public class StatsFlowRuleManager implements StatsFlowRuleAdminService {
                     .matchIPProtocol(statsFlowRule.ipProtocol())
                     .matchUdpSrc(statsFlowRule.srcTpPort())
                     .matchUdpDst(statsFlowRule.dstTpPort());
+        } else if (protocol == ARBITRARY_PROTOCOL) {
+            log.debug("IP protocol type is not specified.");
         } else {
             log.warn("Unsupported protocol {}", statsFlowRule.ipProtocol());
         }

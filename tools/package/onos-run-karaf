@@ -10,7 +10,7 @@ ONOS_TAR=
 
 function killServer() {
     echo "Killing ONOS server..."
-    ps -e | grep apache.karaf.main.Main | grep -v grep | cut -c1-6 | xargs kill -9 &>/dev/null
+    ps -ef | grep apache.karaf.main.Main | grep -v grep | awk '{print $2}' | xargs kill -9 &>/dev/null
 }
 
 # Kill any running instances
@@ -71,7 +71,7 @@ if [ ! -d $ONOS_DIR -o "$oldMD5" != "$newMD5" -o -d $ONOS_DIR -a -n "$clean" ]; 
 EOF
 
     # Copy config files
-    find ${ONOS_ROOT:-.}/tools/package/config -maxdepth 1 -name \*.json -exec cp {} $ONOS_HOME/config/ \;
+    find ${ONOS_ROOT:-.}/tools/package/config -maxdepth 1 -name \*.json -exec cp {} $ONOS_DIR/config/ \;
 
 else
     # Otherwise, run using the previous installation

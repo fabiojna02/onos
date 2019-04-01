@@ -40,7 +40,55 @@ export const glyphMapping = new Map<string, string>([
     ['nonzero', 'nonzero'],
     ['close', 'xClose'],
 
+    ['m_cloud', 'm_cloud'],
+    ['m_map', 'm_map'],
+    ['m_selectMap', 'm_selectMap'],
+    ['thatsNoMoon', 'thatsNoMoon'],
     ['m_ports', 'm_ports'],
+    ['m_switch', 'm_switch'],
+    ['m_roadm', 'm_roadm'],
+    ['m_router', 'm_router'],
+    ['m_uiAttached', 'm_uiAttached'],
+    ['m_endstation', 'm_endstation'],
+    ['m_summary', 'm_summary'],
+    ['m_details', 'm_details'],
+    ['m_oblique', 'm_oblique'],
+    ['m_filters', 'm_filters'],
+    ['m_cycleLabels', 'm_cycleLabels'],
+    ['m_cycleGridDisplay', 'm_cycleGridDisplay'],
+    ['m_prev', 'm_prev'],
+    ['m_next', 'm_next'],
+    ['m_flows', 'm_flows'],
+    ['m_allTraffic', 'm_allTraffic'],
+    ['m_xMark', 'm_xMark'],
+    ['m_resetZoom', 'm_resetZoom'],
+    ['m_eqMaster', 'm_eqMaster'],
+    ['m_unknown', 'm_unknown'],
+    ['m_controller', 'm_controller'],
+    ['m_eqMaster', 'm_eqMaster'],
+    ['m_virtual', 'm_virtual'],
+    ['m_other', 'm_other'],
+    ['m_bgpSpeaker', 'm_bgpSpeaker'],
+    ['m_otn', 'm_otn'],
+    ['m_roadm_otn', 'm_roadm_otn'],
+    ['m_fiberSwitch', 'm_fiberSwitch'],
+    ['m_microwave', 'm_microwave'],
+    ['m_relatedIntents', 'm_relatedIntents'],
+    ['m_intentTraffic', 'm_intentTraffic'],
+    ['m_firewall', 'm_firewall'],
+    ['m_balancer', 'm_balancer'],
+    ['m_ips', 'm_ips'],
+    ['m_ids', 'm_ids'],
+    ['m_olt', 'm_olt'],
+    ['m_onu', 'm_onu'],
+    ['m_swap', 'm_swap'],
+    ['m_shortestGeoPath', 'm_shortestGeoPath'],
+    ['m_source', 'm_source'],
+    ['m_destination', 'm_destination'],
+    ['m_topo', 'm_topo'],
+    ['m_shortestPath', 'm_shortestPath'],
+    ['m_disjointPaths', 'm_disjointPaths'],
+    ['m_region', 'm_region'],
 
     ['topo', 'topo'],
     ['bird', 'bird'],
@@ -52,6 +100,8 @@ export const glyphMapping = new Map<string, string>([
 
     ['upArrow', 'triangleUp'],
     ['downArrow', 'triangleDown'],
+    ['triangleLeft', 'triangleLeft'],
+    ['triangleRight', 'triangleRight'],
 
     ['appInactive', 'unknown'],
     ['uiAttached', 'uiAttached'],
@@ -197,7 +247,11 @@ export class IconService {
      * @param iconCls The icon class as a string
      */
     loadIconDef(iconCls: string): void {
-        this.gs.loadDefs(this.ensureIconLibDefs(), [glyphMapping.get(iconCls)], true);
+        let glyphName: string = glyphMapping.get(iconCls);
+        if (!glyphName) {
+            glyphName = iconCls;
+        }
+        this.gs.loadDefs(this.ensureIconLibDefs(), [glyphName], true);
         this.log.debug('icon definition', iconCls, 'added to defs');
     }
 

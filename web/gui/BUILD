@@ -36,6 +36,7 @@ COMPILE_DEPS = CORE_DEPS + JACKSON + KRYO + CLI + [
     "@jetty_util//jar",
     "@jersey_media_multipart//jar",
     "@jersey_server//jar",
+    "@jersey_hk2//jar",
     "//utils/rest:onlab-rest",
     "//core/store/serializers:onos-core-serializers",
 ]
@@ -95,7 +96,6 @@ genrule(
     srcs = [
         "@nodejs//:bin/npm",
         "@nodejs//:bin/node",
-        "@nodejs//:bin/node.js",
         "@nodejs//:bin/nodejs/bin/node",
         "@nodejs//:bin/nodejs/bin/npm",
         "//tools/gui:tools-gui-gulp",
@@ -125,7 +125,6 @@ genrule(
     srcs = [
         "@nodejs//:bin/npm",
         "@nodejs//:bin/node",
-        "@nodejs//:bin/node.js",
         "@nodejs//:bin/nodejs/bin/node",
         "@nodejs//:bin/nodejs/bin/npm",
         ":_onos-gui-npm-install",
@@ -209,10 +208,30 @@ osgi_jar_with_tests(
 genrule(
     name = "onos-gui-java-for-gui2",
     srcs = glob([
-        "src/main/java/org/onosproject/ui/impl/Main*Resource.java",
-        "src/main/java/org/onosproject/ui/impl/ApplicationResource.java",
+        "src/main/java/org/onosproject/ui/impl/**/*.java",
     ]),
     outs = ["onos-gui-java-for-gui2.srcjar"],
+    cmd = "jar cf $@ $(SRCS)",
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "onos-gui-lion-for-gui2",
+    srcs = glob([
+        "src/main/resources/org/onosproject/ui/lion/**/*",
+        "src/main/resources/core/**/*",
+    ]),
+    outs = ["onos-gui-lion-for-gui2.srcjar"],
+    cmd = "jar cf $@ $(SRCS)",
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "onos-gui-data-for-gui2",
+    srcs = glob([
+        "src/main/webapp/data/**/*",
+    ]),
+    outs = ["onos-gui-data-for-gui2.srcjar"],
     cmd = "jar cf $@ $(SRCS)",
     visibility = ["//visibility:public"],
 )
@@ -222,7 +241,7 @@ genrule(
 """
 
 genrule(
-    name = "onos-gui",
+    name = "onos-web-gui",
     srcs = [
         ":_onos-gui-npm-build",
         ":onos-gui-jar",
@@ -246,4 +265,12 @@ genrule(
           " jar cmf META-INF/MANIFEST.MF $$ROOT/$@ .",
     output_to_bindir = 1,
     visibility = ["//visibility:public"],
+)
+
+onos_app(
+    category = "Graphical User Interface",
+    description = "ONOS GUI - the original ONOS GUI based " +
+                  "on the latest AngularJS - new development should be on GUI2",
+    title = "ONOS Legacy GUI",
+    url = "http://onosproject.org",
 )

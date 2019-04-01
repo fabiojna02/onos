@@ -163,7 +163,7 @@ public final class OpenstackNodeUtil {
                 return null;
             }
         } catch (AuthenticationException e) {
-            log.error("Authentication failed due to {}", e.toString());
+            log.error("Authentication failed due to {}", e);
             return null;
         }
     }
@@ -183,6 +183,7 @@ public final class OpenstackNodeUtil {
             String s = get(properties, propertyName);
             value = Strings.isNullOrEmpty(s) ? null : Boolean.valueOf(s);
         } catch (ClassCastException e) {
+            log.error("Exception occurred because of {}. set valud to null..", e);
             value = null;
         }
         return value;
@@ -279,7 +280,8 @@ public final class OpenstackNodeUtil {
         }
 
         if (addOrRemove) {
-            Map<String, String> options = ImmutableMap.of(DPDK_DEVARGS, dpdkInterface.pciAddress());
+            Map<String, String> options =
+                    ImmutableMap.of(DPDK_DEVARGS, dpdkInterface.pciAddress());
 
             OvsdbInterface.Builder builder = OvsdbInterface.builder()
                     .name(dpdkInterface.intf())
@@ -302,7 +304,8 @@ public final class OpenstackNodeUtil {
      * @param openstackNode      device identifier
      * @return the hostname of selected gateway node
      */
-    public static String getGwByComputeNode(Set<OpenstackNode> gws, OpenstackNode openstackNode) {
+    public static String getGwByComputeNode(Set<OpenstackNode> gws,
+                                            OpenstackNode openstackNode) {
         int numOfGw = gws.size();
 
         if (numOfGw == 0) {
@@ -373,16 +376,21 @@ public final class OpenstackNodeUtil {
 
         TrustManager[] trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
+                    @Override
                     public X509Certificate[] getAcceptedIssuers() {
                         return null;
                     }
 
+                    @Override
                     public void checkClientTrusted(X509Certificate[] certs,
                                                    String authType) {
+                        return;
                     }
 
+                    @Override
                     public void checkServerTrusted(X509Certificate[] certs,
                                                    String authType) {
+                        return;
                     }
                 }
         };
@@ -398,7 +406,7 @@ public final class OpenstackNodeUtil {
 
             config.withSSLContext(sc);
         } catch (Exception e) {
-            log.error("Failed to access OpenStack service due to {}", e.toString());
+            log.error("Failed to access OpenStack service due to {}", e);
             return null;
         }
 

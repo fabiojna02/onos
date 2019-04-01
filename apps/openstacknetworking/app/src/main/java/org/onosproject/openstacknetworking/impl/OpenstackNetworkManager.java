@@ -35,6 +35,8 @@ import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.PacketService;
 import org.onosproject.openstacknetworking.api.Constants;
 import org.onosproject.openstacknetworking.api.ExternalPeerRouter;
+import org.onosproject.openstacknetworking.api.OpenstackNetwork;
+import org.onosproject.openstacknetworking.api.OpenstackNetwork.Type;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkAdminService;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkEvent;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkListener;
@@ -47,11 +49,10 @@ import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.ConsistentMap;
 import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
-import org.openstack4j.model.common.IdEntity;
+import org.onosproject.store.service.Versioned;
 import org.openstack4j.model.network.ExternalGateway;
 import org.openstack4j.model.network.IP;
 import org.openstack4j.model.network.Network;
-import org.openstack4j.model.network.NetworkType;
 import org.openstack4j.model.network.Port;
 import org.openstack4j.model.network.Router;
 import org.openstack4j.model.network.Subnet;
@@ -63,6 +64,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -71,11 +73,19 @@ import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Objects.requireNonNull;
 import static org.onosproject.net.AnnotationKeys.PORT_NAME;
 import static org.onosproject.openstacknetworking.api.Constants.DIRECT;
 import static org.onosproject.openstacknetworking.api.Constants.PCISLOT;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.FLAT;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.GENEVE;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.GRE;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.LOCAL;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.VLAN;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.VXLAN;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.getIntfNameFromPciAddress;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.vnicType;
+import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.GATEWAY;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -83,7 +93,10 @@ import static org.slf4j.LoggerFactory.getLogger;
  * subnet, and port.
  */
 
-@Component(immediate = true, service = { OpenstackNetworkAdminService.class, OpenstackNetworkService.class })
+@Component(
+    immediate = true,
+    service = { OpenstackNetworkAdminService.class, OpenstackNetworkService.class }
+)
 public class OpenstackNetworkManager
         extends ListenerRegistry<OpenstackNetworkEvent, OpenstackNetworkListener>
         implements OpenstackNetworkAdminService, OpenstackNetworkService {
@@ -91,26 +104,36 @@ public class OpenstackNetworkManager
     protected final Logger log = getLogger(getClass());
 
     private static final String MSG_NETWORK  = "OpenStack network %s %s";
+    private static final String MSG_NETWORK_TYPE  = "OpenStack network type %s %s";
     private static final String MSG_SUBNET  = "OpenStack subnet %s %s";
     private static final String MSG_PORT = "OpenStack port %s %s";
     private static final String MSG_CREATED = "created";
     private static final String MSG_UPDATED = "updated";
     private static final String MSG_REMOVED = "removed";
 
-    private static final String ERR_NULL_NETWORK  = "OpenStack network cannot be null";
-    private static final String ERR_NULL_NETWORK_ID  = "OpenStack network ID cannot be null";
-    private static final String ERR_NULL_NETWORK_NAME  = "OpenStack network name cannot be null";
-    private static final String ERR_NULL_SUBNET = "OpenStack subnet cannot be null";
-    private static final String ERR_NULL_SUBNET_ID = "OpenStack subnet ID cannot be null";
-    private static final String ERR_NULL_SUBNET_NET_ID = "OpenStack subnet network ID cannot be null";
-    private static final String ERR_NULL_SUBNET_CIDR = "OpenStack subnet CIDR cannot be null";
-    private static final String ERR_NULL_PORT = "OpenStack port cannot be null";
-    private static final String ERR_NULL_PORT_ID = "OpenStack port ID cannot be null";
-    private static final String ERR_NULL_PORT_NET_ID = "OpenStack port network ID cannot be null";
-
     private static final String ERR_NOT_FOUND = " does not exist";
-    private static final String ERR_IN_USE = " still in use";
     private static final String ERR_DUPLICATE = " already exists";
+
+    private static final String ERR_NULL_NETWORK  =
+                                "OpenStack network cannot be null";
+    private static final String ERR_NULL_NETWORK_ID  =
+                                "OpenStack network ID cannot be null";
+    private static final String ERR_NULL_SUBNET =
+                                "OpenStack subnet cannot be null";
+    private static final String ERR_NULL_SUBNET_ID =
+                                "OpenStack subnet ID cannot be null";
+    private static final String ERR_NULL_SUBNET_NET_ID =
+                                "OpenStack subnet network ID cannot be null";
+    private static final String ERR_NULL_SUBNET_CIDR =
+                                "OpenStack subnet CIDR cannot be null";
+    private static final String ERR_NULL_PORT =
+                                "OpenStack port cannot be null";
+    private static final String ERR_NULL_PORT_ID =
+                                "OpenStack port ID cannot be null";
+    private static final String ERR_NULL_PORT_NET_ID =
+                                "OpenStack port network ID cannot be null";
+
+    private static final String ERR_IN_USE = " still in use";
 
     private static final int PREFIX_LENGTH = 32;
 
@@ -133,17 +156,28 @@ public class OpenstackNetworkManager
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackNodeService osNodeService;
 
-    private final OpenstackNetworkStoreDelegate delegate = new InternalNetworkStoreDelegate();
+    private final OpenstackNetworkStoreDelegate
+                                delegate = new InternalNetworkStoreDelegate();
 
     private ConsistentMap<String, ExternalPeerRouter> externalPeerRouterMap;
+    private ConsistentMap<String, OpenstackNetwork> augmentedNetworkMap;
 
-    private static final KryoNamespace SERIALIZER_EXTERNAL_PEER_ROUTER_MAP = KryoNamespace.newBuilder()
+    private static final KryoNamespace
+            SERIALIZER_EXTERNAL_PEER_ROUTER_MAP = KryoNamespace.newBuilder()
             .register(KryoNamespaces.API)
             .register(ExternalPeerRouter.class)
             .register(DefaultExternalPeerRouter.class)
             .register(MacAddress.class)
             .register(IpAddress.class)
             .register(VlanId.class)
+            .build();
+
+    private static final KryoNamespace
+            SERIALIZER_AUGMENTED_NETWORK_MAP = KryoNamespace.newBuilder()
+            .register(KryoNamespaces.API)
+            .register(OpenstackNetwork.Type.class)
+            .register(OpenstackNetwork.class)
+            .register(DefaultOpenstackNetwork.class)
             .build();
 
     private ApplicationId appId;
@@ -161,6 +195,12 @@ public class OpenstackNetworkManager
                 .withName("external-routermap")
                 .withApplicationId(appId)
                 .build();
+
+        augmentedNetworkMap = storageService.<String, OpenstackNetwork>consistentMapBuilder()
+                .withSerializer(Serializer.using(SERIALIZER_AUGMENTED_NETWORK_MAP))
+                .withName("augmented-networkmap")
+                .withApplicationId(appId)
+                .build();
     }
 
     @Deactivate
@@ -175,6 +215,14 @@ public class OpenstackNetworkManager
         checkArgument(!Strings.isNullOrEmpty(osNet.getId()), ERR_NULL_NETWORK_ID);
 
         osNetworkStore.createNetwork(osNet);
+
+        OpenstackNetwork finalAugmentedNetwork = buildAugmentedNetworkFromType(osNet);
+        augmentedNetworkMap.compute(osNet.getId(), (id, existing) -> {
+            final String error = osNet.getId() + ERR_DUPLICATE;
+            checkArgument(existing == null, error);
+            return finalAugmentedNetwork;
+        });
+
         log.info(String.format(MSG_NETWORK, osNet.getName(), MSG_CREATED));
     }
 
@@ -184,6 +232,14 @@ public class OpenstackNetworkManager
         checkArgument(!Strings.isNullOrEmpty(osNet.getId()), ERR_NULL_NETWORK_ID);
 
         osNetworkStore.updateNetwork(osNet);
+
+        OpenstackNetwork finalAugmentedNetwork = buildAugmentedNetworkFromType(osNet);
+        augmentedNetworkMap.compute(osNet.getId(), (id, existing) -> {
+            final String error = osNet.getId() + ERR_NOT_FOUND;
+            checkArgument(existing != null, error);
+            return finalAugmentedNetwork;
+        });
+
         log.info(String.format(MSG_NETWORK, osNet.getId(), MSG_UPDATED));
     }
 
@@ -198,6 +254,12 @@ public class OpenstackNetworkManager
             Network osNet = osNetworkStore.removeNetwork(netId);
             if (osNet != null) {
                 log.info(String.format(MSG_NETWORK, osNet.getName(), MSG_REMOVED));
+            }
+
+            Versioned<OpenstackNetwork> augmentedNetwork = augmentedNetworkMap.remove(netId);
+            if (augmentedNetwork != null) {
+                log.info(String.format(MSG_NETWORK_TYPE,
+                                    augmentedNetwork.value().type(), MSG_REMOVED));
             }
         }
     }
@@ -277,6 +339,8 @@ public class OpenstackNetworkManager
     @Override
     public void clear() {
         osNetworkStore.clear();
+        augmentedNetworkMap.clear();
+        externalPeerRouterMap.clear();
     }
 
     @Override
@@ -331,16 +395,16 @@ public class OpenstackNetworkManager
                             .filter(p -> p.getId().contains(portName.substring(3)))
                             .findFirst();
                     return osPort.orElse(null);
-
                 case DIRECT:
                     //Additional prefixes will be added
                     osPort = osNetworkStore.ports()
                             .stream()
-                            .filter(p -> p.getvNicType().equals(DIRECT) && p.getProfile().get(PCISLOT) != null)
-                            .filter(p -> Objects.requireNonNull(getIntfNameFromPciAddress(p)).equals(portName))
+                            .filter(p -> p.getvNicType().equals(DIRECT) &&
+                                            p.getProfile().get(PCISLOT) != null)
+                            .filter(p -> requireNonNull(
+                                    getIntfNameFromPciAddress(p)).equals(portName))
                             .findFirst();
                     return osPort.orElse(null);
-
                 default:
                     return null;
             }
@@ -369,24 +433,33 @@ public class OpenstackNetworkManager
             return Sets.newHashSet();
         }
 
-        Set<Network> networks = osNetworkStore.networks();
         Set<String> networkIds = Sets.newConcurrentHashSet();
 
         switch (type.toUpperCase()) {
-            case "FLAT" :
-                networkIds = networks.stream()
-                        .filter(n -> n.getNetworkType() == NetworkType.FLAT)
-                        .map(IdEntity::getId).collect(Collectors.toSet());
+            case Constants.FLAT :
+                networkIds = augmentedNetworkMap.asJavaMap().entrySet().stream()
+                        .filter(e -> e.getValue().type() == FLAT)
+                        .map(Map.Entry::getKey).collect(Collectors.toSet());
                 break;
-            case "VXLAN" :
-                networkIds = networks.stream()
-                        .filter(n -> n.getNetworkType() == NetworkType.VXLAN)
-                        .map(IdEntity::getId).collect(Collectors.toSet());
+            case Constants.VXLAN :
+                networkIds = augmentedNetworkMap.asJavaMap().entrySet().stream()
+                        .filter(e -> e.getValue().type() == VXLAN)
+                        .map(Map.Entry::getKey).collect(Collectors.toSet());
                 break;
-            case "VLAN" :
-                networkIds = networks.stream()
-                        .filter(n -> n.getNetworkType() == NetworkType.VLAN)
-                        .map(IdEntity::getId).collect(Collectors.toSet());
+            case Constants.GRE :
+                networkIds = augmentedNetworkMap.asJavaMap().entrySet().stream()
+                        .filter(e -> e.getValue().type() == GRE)
+                        .map(Map.Entry::getKey).collect(Collectors.toSet());
+                break;
+            case Constants.VLAN :
+                networkIds = augmentedNetworkMap.asJavaMap().entrySet().stream()
+                        .filter(e -> e.getValue().type() == VLAN)
+                        .map(Map.Entry::getKey).collect(Collectors.toSet());
+                break;
+            case Constants.GENEVE :
+                networkIds = augmentedNetworkMap.asJavaMap().entrySet().stream()
+                        .filter(e -> e.getValue().type() == GENEVE)
+                        .map(Map.Entry::getKey).collect(Collectors.toSet());
                 break;
             default:
                 break;
@@ -430,15 +503,16 @@ public class OpenstackNetworkManager
     }
 
     @Override
-    public void deriveExternalPeerRouterMac(ExternalGateway externalGateway, Router router, VlanId vlanId) {
+    public void deriveExternalPeerRouterMac(ExternalGateway externalGateway,
+                                            Router router, VlanId vlanId) {
         log.info("deriveExternalPeerRouterMac called");
 
         IpAddress sourceIp = getExternalGatewaySourceIp(externalGateway, router);
         IpAddress targetIp = getExternalPeerRouterIp(externalGateway);
 
         if (sourceIp == null || targetIp == null) {
-            log.warn("Failed to derive external router mac address because source IP {} or target IP {} is null",
-                    sourceIp, targetIp);
+            log.warn("Failed to derive external router mac address because " +
+                            "source IP {} or target IP {} is null", sourceIp, targetIp);
             return;
         }
 
@@ -454,11 +528,11 @@ public class OpenstackNetworkManager
                 targetIp.toOctets(),
                 vlanId.id());
 
-        if (osNodeService.completeNodes(OpenstackNode.NodeType.GATEWAY).isEmpty()) {
+        if (osNodeService.completeNodes(GATEWAY).isEmpty()) {
             log.warn("There's no complete gateway");
             return;
         }
-        OpenstackNode gatewayNode = osNodeService.completeNodes(OpenstackNode.NodeType.GATEWAY)
+        OpenstackNode gatewayNode = osNodeService.completeNodes(GATEWAY)
                 .stream()
                 .findFirst()
                 .orElse(null);
@@ -488,7 +562,8 @@ public class OpenstackNetworkManager
                         .vlanId(vlanId)
                         .build());
 
-        log.info("Initializes external peer router map with peer router IP {}", targetIp.toString());
+        log.info("Initializes external peer router map with peer router IP {}",
+                                                            targetIp.toString());
     }
 
     @Override
@@ -520,7 +595,8 @@ public class OpenstackNetworkManager
     }
 
     @Override
-    public void updateExternalPeerRouterMac(IpAddress ipAddress, MacAddress macAddress) {
+    public void updateExternalPeerRouterMac(IpAddress ipAddress,
+                                            MacAddress macAddress) {
         try {
             externalPeerRouterMap.computeIfPresent(ipAddress.toString(), (id, existing) ->
                     DefaultExternalPeerRouter.builder()
@@ -532,13 +608,14 @@ public class OpenstackNetworkManager
             log.info("Updated external peer router map {}",
                     externalPeerRouterMap.get(ipAddress.toString()).value().toString());
         } catch (Exception e) {
-            log.error("Exception occurred because of {}", e.toString());
+            log.error("Exception occurred because of {}", e);
         }
     }
 
-
     @Override
-    public void updateExternalPeerRouter(IpAddress ipAddress, MacAddress macAddress, VlanId vlanId) {
+    public void updateExternalPeerRouter(IpAddress ipAddress,
+                                         MacAddress macAddress,
+                                         VlanId vlanId) {
         try {
             externalPeerRouterMap.computeIfPresent(ipAddress.toString(), (id, existing) ->
                     DefaultExternalPeerRouter.builder()
@@ -548,7 +625,7 @@ public class OpenstackNetworkManager
                             .build());
 
         } catch (Exception e) {
-            log.error("Exception occurred because of {}", e.toString());
+            log.error("Exception occurred because of {}", e);
         }
     }
 
@@ -577,7 +654,7 @@ public class OpenstackNetworkManager
                             .vlanId(vlanId).build());
 
         } catch (Exception e) {
-            log.error("Exception occurred because of {}", e.toString());
+            log.error("Exception occurred because of {}", e);
         }
     }
 
@@ -611,12 +688,12 @@ public class OpenstackNetworkManager
     }
 
     @Override
-    public String networkType(String netId) {
-        Network network = network(netId);
+    public Type networkType(String netId) {
+        OpenstackNetwork network = augmentedNetworkMap.asJavaMap().get(netId);
 
         checkNotNull(network);
 
-        return network.getNetworkType().toString();
+        return network.type();
     }
 
     @Override
@@ -652,6 +729,35 @@ public class OpenstackNetworkManager
         return network.getProviderSegID();
     }
 
+    private OpenstackNetwork buildAugmentedNetworkFromType(Network osNet) {
+        OpenstackNetwork augmentedNetwork = null;
+        if (osNet.getNetworkType() == null) {
+            augmentedNetwork = new DefaultOpenstackNetwork(osNet.getId(), GENEVE);
+        } else {
+            switch (osNet.getNetworkType()) {
+                case FLAT:
+                    augmentedNetwork = new DefaultOpenstackNetwork(osNet.getId(), FLAT);
+                    break;
+                case VLAN:
+                    augmentedNetwork = new DefaultOpenstackNetwork(osNet.getId(), VLAN);
+                    break;
+                case VXLAN:
+                    augmentedNetwork = new DefaultOpenstackNetwork(osNet.getId(), VXLAN);
+                    break;
+                case GRE:
+                    augmentedNetwork = new DefaultOpenstackNetwork(osNet.getId(), GRE);
+                    break;
+                case LOCAL:
+                    augmentedNetwork = new DefaultOpenstackNetwork(osNet.getId(), LOCAL);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return augmentedNetwork;
+    }
+
     private boolean isNetworkInUse(String netId) {
         return !subnets(netId).isEmpty() && !ports(netId).isEmpty();
     }
@@ -677,7 +783,8 @@ public class OpenstackNetworkManager
         }
     }
 
-    private IpAddress getExternalGatewaySourceIp(ExternalGateway externalGateway, Router router) {
+    private IpAddress getExternalGatewaySourceIp(ExternalGateway externalGateway,
+                                                 Router router) {
         Port exGatewayPort = ports(externalGateway.getNetworkId())
                 .stream()
                 .filter(port -> Objects.equals(port.getDeviceId(), router.getId()))
@@ -700,6 +807,7 @@ public class OpenstackNetworkManager
                 .stream()
                 .findFirst();
 
-        return externalSubnet.map(subnet -> IpAddress.valueOf(subnet.getGateway())).orElse(null);
+        return externalSubnet.map(subnet ->
+                    IpAddress.valueOf(subnet.getGateway())).orElse(null);
     }
 }

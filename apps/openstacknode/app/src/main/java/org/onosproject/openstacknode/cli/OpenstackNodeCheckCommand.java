@@ -18,11 +18,12 @@ package org.onosproject.openstacknode.cli;
 
 import org.apache.karaf.shell.api.action.Argument;
 import org.apache.karaf.shell.api.action.Command;
+import org.apache.karaf.shell.api.action.Completion;
 import org.apache.karaf.shell.api.action.lifecycle.Service;
 import org.onosproject.cli.AbstractShellCommand;
+import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Port;
-import org.onosproject.net.Device;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.openstacknode.api.NodeState;
 import org.onosproject.openstacknode.api.OpenstackNode;
@@ -30,7 +31,8 @@ import org.onosproject.openstacknode.api.OpenstackNodeService;
 import org.openstack4j.api.OSClient;
 
 import static org.onosproject.net.AnnotationKeys.PORT_NAME;
-import static org.onosproject.openstacknode.api.Constants.DEFAULT_TUNNEL;
+import static org.onosproject.openstacknode.api.Constants.GRE_TUNNEL;
+import static org.onosproject.openstacknode.api.Constants.VXLAN_TUNNEL;
 import static org.onosproject.openstacknode.api.Constants.INTEGRATION_BRIDGE;
 import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.CONTROLLER;
 import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.GATEWAY;
@@ -46,6 +48,7 @@ public class OpenstackNodeCheckCommand extends AbstractShellCommand {
 
     @Argument(index = 0, name = "hostname", description = "Hostname",
             required = true, multiValued = false)
+    @Completion(OpenstackHostnameCompleter.class)
     private String hostname = null;
 
     private static final String MSG_OK = "OK";
@@ -53,8 +56,8 @@ public class OpenstackNodeCheckCommand extends AbstractShellCommand {
 
     @Override
     protected void doExecute() {
-        OpenstackNodeService osNodeService = AbstractShellCommand.get(OpenstackNodeService.class);
-        DeviceService deviceService = AbstractShellCommand.get(DeviceService.class);
+        OpenstackNodeService osNodeService = get(OpenstackNodeService.class);
+        DeviceService deviceService = get(DeviceService.class);
 
         OpenstackNode osNode = osNodeService.node(hostname);
         if (osNode == null) {
@@ -91,11 +94,15 @@ public class OpenstackNodeCheckCommand extends AbstractShellCommand {
                         deviceService.isAvailable(device.id()),
                         device.annotations());
                 if (osNode.dataIp() != null) {
-                    printPortState(deviceService, osNode.intgBridge(), DEFAULT_TUNNEL);
+                    printPortState(deviceService, osNode.intgBridge(), VXLAN_TUNNEL);
+                    printPortState(deviceService, osNode.intgBridge(), GRE_TUNNEL);
                 }
                 if (osNode.vlanIntf() != null) {
                     printPortState(deviceService, osNode.intgBridge(), osNode.vlanIntf());
                 }
+                osNode.phyIntfs().forEach(intf -> {
+                    printPortState(deviceService, osNode.intgBridge(), intf.intf());
+                });
                 if (osNode.type() == GATEWAY) {
                     printPortState(deviceService, osNode.intgBridge(), osNode.uplinkPort());
                 }
@@ -108,7 +115,8 @@ public class OpenstackNodeCheckCommand extends AbstractShellCommand {
         }
     }
 
-    private void printPortState(DeviceService deviceService, DeviceId deviceId, String portName) {
+    private void printPortState(DeviceService deviceService,
+                                DeviceId deviceId, String portName) {
         Port port = deviceService.getPorts(deviceId).stream()
                 .filter(p -> p.annotations().value(PORT_NAME).equals(portName) &&
                         p.isEnabled())

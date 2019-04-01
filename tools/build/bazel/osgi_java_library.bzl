@@ -225,18 +225,14 @@ def _swagger_java_impl(ctx):
     package_name = ctx.attr.package_name
 
     srcs_arg = ""
-    resources_arg = ""
 
     for file in ctx.files.srcs:
         srcs_arg += file.path + ","
 
-    for resource in resources_arg:
-        resources_arg += resource.path + ","
-
     # call swagger generator to make the swagger JSON and java files
     arguments = [
         srcs_arg,
-        resources_arg,
+        "",
         "",
         package_name + "/src/main/resources",
         output_dir,
@@ -273,18 +269,14 @@ def _swagger_json_impl(ctx):
     package_name = ctx.attr.package_name
 
     srcs_arg = ""
-    resources_arg = ""
 
     for file in ctx.files.srcs:
         srcs_arg += file.path + ","
 
-    for resource in resources_arg:
-        resources_arg += resource.path + ","
-
     # call swagger generator to make the swagger JSON and java files
     arguments = [
         srcs_arg,
-        resources_arg,
+        "",
         "",
         package_name + "/src/main/resources",
         output_dir,
@@ -451,7 +443,7 @@ def osgi_jar_with_tests(
     native_srcs = srcs
     native_resources = resources
 
-    if web_context != None and api_title != "" and len(resources) != 0:
+    if web_context != None and api_title != "":
         # generate Swagger files if needed
         _swagger_java(
             name = name + "_swagger_java",

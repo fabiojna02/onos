@@ -23,10 +23,9 @@ import com.google.common.util.concurrent.Striped;
 import org.onlab.util.ItemNotFoundException;
 import org.onlab.util.SharedExecutors;
 import org.onosproject.net.DeviceId;
-import org.onosproject.net.config.ConfigFactory;
 import org.onosproject.net.config.NetworkConfigRegistry;
 import org.onosproject.net.config.basics.BasicDeviceConfig;
-import org.onosproject.net.config.basics.SubjectFactories;
+import org.onosproject.net.device.PortStatisticsDiscovery;
 import org.onosproject.net.driver.Behaviour;
 import org.onosproject.net.driver.DefaultDriver;
 import org.onosproject.net.driver.Driver;
@@ -36,7 +35,6 @@ import org.onosproject.net.driver.DriverListener;
 import org.onosproject.net.driver.DriverProvider;
 import org.onosproject.net.pi.model.PiPipeconf;
 import org.onosproject.net.pi.model.PiPipeconfId;
-import org.onosproject.net.pi.service.PiPipeconfConfig;
 import org.onosproject.net.pi.service.PiPipeconfMappingStore;
 import org.onosproject.net.pi.service.PiPipeconfService;
 import org.osgi.service.component.annotations.Activate;
@@ -73,7 +71,6 @@ public class PiPipeconfManager implements PiPipeconfService {
     private final Logger log = getLogger(getClass());
 
     private static final String MERGED_DRIVER_SEPARATOR = ":";
-    private static final String CFG_SCHEME = "piPipeconf";
 
     private static final int MISSING_DRIVER_WATCHDOG_INTERVAL = 5; // Seconds.
 
@@ -98,19 +95,8 @@ public class PiPipeconfManager implements PiPipeconfService {
     protected ExecutorService executor = Executors.newFixedThreadPool(
             10, groupedThreads("onos/pipeconf-manager", "%d", log));
 
-    protected final ConfigFactory configFactory =
-            new ConfigFactory<DeviceId, PiPipeconfConfig>(
-                    SubjectFactories.DEVICE_SUBJECT_FACTORY,
-                    PiPipeconfConfig.class, CFG_SCHEME) {
-                @Override
-                public PiPipeconfConfig createConfig() {
-                    return new PiPipeconfConfig();
-                }
-            };
-
     @Activate
     public void activate() {
-        cfgService.registerConfigFactory(configFactory);
         driverAdminService.addListener(driverListener);
         checkMissingMergedDrivers();
         if (!missingMergedDrivers.isEmpty()) {
@@ -127,7 +113,6 @@ public class PiPipeconfManager implements PiPipeconfService {
     @Deactivate
     public void deactivate() {
         executor.shutdown();
-        cfgService.unregisterConfigFactory(configFactory);
         driverAdminService.removeListener(driverListener);
         pipeconfs.clear();
         missingMergedDrivers.clear();
@@ -166,6 +151,16 @@ public class PiPipeconfManager implements PiPipeconfService {
     @Override
     public Optional<PiPipeconf> getPipeconf(PiPipeconfId id) {
         return Optional.ofNullable(pipeconfs.get(id));
+    }
+
+    @Override
+    public Optional<PiPipeconf> getPipeconf(DeviceId deviceId) {
+        if (pipeconfMappingStore.getPipeconfId(deviceId) == null) {
+            return Optional.empty();
+        } else {
+            return Optional.ofNullable(pipeconfs.get(
+                    pipeconfMappingStore.getPipeconfId(deviceId)));
+        }
     }
 
     @Override
@@ -221,7 +216,7 @@ public class PiPipeconfManager implements PiPipeconfService {
             if (getDriver(newDriverName) != null) {
                 return newDriverName;
             }
-            log.info("Creating merged driver {}...", newDriverName);
+            log.debug("Creating merged driver {}...", newDriverName);
             final Driver mergedDriver = buildMergedDriver(
                     pipeconfId, baseDriverName, newDriverName);
             if (mergedDriver == null) {
@@ -289,6 +284,20 @@ public class PiPipeconfManager implements PiPipeconfService {
                 new HashMap<>();
         pipeconf.behaviours().forEach(
                 b -> behaviours.put(b, pipeconf.implementation(b).get()));
+
+        // FIXME: remove this check when stratum_bmv2 will be open source and we
+        //  will no longer need to read port counters from the p4 program. Here
+        //  we ignore the PortStatisticsDiscovery behaviour from the pipeconf if
+        //  the base driver (e.g. stratum with gnmi) already has it. But in
+        //  general, we should give higher priority to pipeconf behaviours.
+        if (baseDriver.hasBehaviour(PortStatisticsDiscovery.class)
+                && behaviours.remove(PortStatisticsDiscovery.class) != null) {
+            log.warn("Ignoring {} behaviour from pipeconf {}, but using " +
+                             "the one provided by {} driver...",
+                     PortStatisticsDiscovery.class.getSimpleName(), pipeconfId,
+                     baseDriver.name());
+        }
+
         final Driver piPipeconfDriver = new DefaultDriver(
                 newDriverName, baseDriver.parents(),
                 baseDriver.manufacturer(), baseDriver.hwVersion(),

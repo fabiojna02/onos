@@ -33,7 +33,7 @@ import { LogService } from '../../log.service';
   styleUrls: [
     './icon.component.css', './icon.theme.css',
     './glyph.css', './glyph-theme.css',
-    './tooltip.css', './tooltip-theme.css'
+    './tooltip.css', './button-theme.css'
     ]
 })
 export class IconComponent implements OnInit, OnChanges {
@@ -73,6 +73,11 @@ export class IconComponent implements OnInit, OnChanges {
      * @returns The iconTag corresponding to the iconId of this instance
      */
     iconTag(): string {
-        return '#' + glyphMapping.get(this.iconId);
+        const iconIdStr: string = glyphMapping.get(this.iconId);
+        if (iconIdStr) {
+            return '#' + iconIdStr;
+        } else {
+            return '#' + this.iconId;
+        }
     }
 }

@@ -142,12 +142,16 @@ public class CfgDefGenerator {
     // as the property or
     // TODO: from an annotated comment.
     private String description(JavaClass javaClass, String name) {
+        if (name.startsWith("_")) {
+            // Static property - just leave it as is, not for inclusion in the cfg defs
+            return null;
+        }
         JavaField field = javaClass.getFieldByName(name);
         if (field != null) {
             String comment = field.getComment();
             return comment != null ? comment : NO_DESCRIPTION;
         }
-        return null;
+        throw new IllegalStateException("cfgdef could not find a variable named " + name + " in " + javaClass.getName());
     }
 
     private String elaborate(AnnotationValue value) {

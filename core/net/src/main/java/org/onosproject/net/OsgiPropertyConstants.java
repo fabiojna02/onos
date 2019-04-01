@@ -124,4 +124,11 @@ public final class OsgiPropertyConstants {
 
     public static final String DTP_MAX_BATCH_MS = "maxBatchMs";
     public static final int DTP_MAX_BATCH_MS_DEFAULT = 50;
+
+    public static final String AUDIT_ENABLED = "auditEnabled";
+    public static final boolean AUDIT_ENABLED_DEFAULT = false;
+
+    public static final String AUDIT_LOGGER = "auditLogger";
+    public static final String AUDIT_LOGGER_DEFAULT = "securityAudit";
+
 }

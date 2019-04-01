@@ -47,7 +47,7 @@ import static org.slf4j.LoggerFactory.getLogger;
     immediate = true,
     service = DhcpFpmPrefixStore.class,
     property = {
-        "fpm_type=DHCP"
+        "_fpm_type=DHCP"
     }
 )
 public class DistributedFpmPrefixStore implements DhcpFpmPrefixStore {

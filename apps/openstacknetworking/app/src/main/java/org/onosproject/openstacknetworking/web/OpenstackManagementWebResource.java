@@ -29,6 +29,7 @@ import org.onosproject.openstacknetworking.api.OpenstackNetworkAdminService;
 import org.onosproject.openstacknetworking.api.OpenstackRouterAdminService;
 import org.onosproject.openstacknetworking.api.OpenstackSecurityGroupAdminService;
 import org.onosproject.openstacknetworking.impl.OpenstackRoutingArpHandler;
+import org.onosproject.openstacknetworking.impl.OpenstackRoutingSnatHandler;
 import org.onosproject.openstacknetworking.impl.OpenstackSecurityGroupHandler;
 import org.onosproject.openstacknetworking.impl.OpenstackSwitchingArpHandler;
 import org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil;
@@ -55,11 +56,14 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static java.lang.Thread.sleep;
+import static java.util.stream.StreamSupport.stream;
 import static org.onlab.util.Tools.nullIsIllegal;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.addRouterIface;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.checkActivationFlag;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.checkArpMode;
 import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.getPropertyValue;
+import static org.onosproject.openstacknetworking.util.OpenstackNetworkingUtil.getPropertyValueAsBoolean;
+import static org.onosproject.openstacknode.api.NodeState.COMPLETE;
 import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.COMPUTE;
 import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.CONTROLLER;
 import static org.onosproject.openstacknode.api.OpenstackNode.NodeType.GATEWAY;
@@ -74,12 +78,15 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
     private static final String FLOATINGIPS = "floatingips";
     private static final String ARP_MODE_NAME = "arpMode";
     private static final String USE_SECURITY_GROUP_NAME = "useSecurityGroup";
+    private static final String USE_STATEFUL_SNAT_NAME = "useStatefulSnat";
 
     private static final long SLEEP_MS = 3000; // we wait 3s for init each node
+    private static final long TIMEOUT_MS = 10000; // we wait 10s
 
     private static final String DEVICE_OWNER_IFACE = "network:router_interface";
 
     private static final String ARP_MODE_REQUIRED = "ARP mode is not specified";
+    private static final String STATEFUL_SNAT_REQUIRED = "Stateful SNAT flag nis not specified";
 
     private static final String SECURITY_GROUP_FLAG_REQUIRED = "Security Group flag is not specified";
 
@@ -221,8 +228,11 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
     @Path("purge/rules")
     public Response purgeRules() {
 
-        purgeRulesBase();
-        return ok(mapper().createObjectNode()).build();
+        if (purgeRulesBase()) {
+            return ok(mapper().createObjectNode()).build();
+        } else {
+            return Response.serverError().build();
+        }
     }
 
     /**
@@ -262,6 +272,39 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
         } else {
             throw new IllegalArgumentException("The ARP mode is not valid");
         }
+
+        return ok(mapper().createObjectNode()).build();
+    }
+
+    /**
+     * Configures the stateful SNAT flag (enable | disable).
+     *
+     * @param statefulSnat stateful SNAT flag
+     * @return 200 OK with config result, 404 not found
+     */
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("config/statefulSnat/{statefulSnat}")
+    public Response configStatefulSnat(@PathParam("statefulSnat") String statefulSnat) {
+        String statefulSnatStr = nullIsIllegal(statefulSnat, STATEFUL_SNAT_REQUIRED);
+        boolean flag = checkActivationFlag(statefulSnatStr);
+        configStatefulSnatBase(flag);
+
+        ComponentConfigService service = get(ComponentConfigService.class);
+        String snatComponent = OpenstackRoutingSnatHandler.class.getName();
+
+        while (true) {
+            boolean snatValue =
+                    getPropertyValueAsBoolean(
+                            service.getProperties(snatComponent), USE_STATEFUL_SNAT_NAME);
+
+            if (flag == snatValue) {
+                break;
+            }
+        }
+
+        purgeRulesBase();
+        syncRulesBase();
 
         return ok(mapper().createObjectNode()).build();
     }
@@ -340,25 +383,83 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
         OpenstackNode updated = osNode.updateState(NodeState.INIT);
         osNodeAdminService.updateNode(updated);
 
-        try {
-            sleep(SLEEP_MS);
-        } catch (InterruptedException e) {
-            log.error("Exception caused during node synchronization...");
+        boolean result = true;
+        long timeoutExpiredMs = System.currentTimeMillis() + TIMEOUT_MS;
+
+        while (osNodeAdminService.node(osNode.hostname()).state() != COMPLETE) {
+
+            long  waitMs = timeoutExpiredMs - System.currentTimeMillis();
+
+            try {
+                sleep(SLEEP_MS);
+            } catch (InterruptedException e) {
+                log.error("Exception caused during node synchronization...");
+            }
+
+            if (osNodeAdminService.node(osNode.hostname()).state() == COMPLETE) {
+                break;
+            } else {
+                osNodeAdminService.updateNode(updated);
+                log.info("Failed to synchronize flow rules, retrying...");
+            }
+
+            if (waitMs <= 0) {
+                result = false;
+                break;
+            }
         }
 
-        if (osNodeAdminService.node(osNode.hostname()).state() == NodeState.COMPLETE) {
-            log.info("Finished sync rules for node {}", osNode.hostname());
+        if (result) {
+            log.info("Successfully synchronize flow rules for node {}!", osNode.hostname());
         } else {
-            log.info("Failed to sync rules for node {}", osNode.hostname());
+            log.warn("Failed to synchronize flow rules for node {}.", osNode.hostname());
         }
     }
 
-    private void purgeRulesBase() {
+    private boolean purgeRulesBase() {
         ApplicationId appId = coreService.getAppId(Constants.OPENSTACK_NETWORKING_APP_ID);
         if (appId == null) {
             throw new ItemNotFoundException("application not found");
         }
+
         flowRuleService.removeFlowRulesById(appId);
+
+        boolean result = true;
+        long timeoutExpiredMs = System.currentTimeMillis() + TIMEOUT_MS;
+
+        // we make sure all flow rules are removed from the store
+        while (stream(flowRuleService.getFlowEntriesById(appId)
+                                     .spliterator(), false).count() > 0) {
+
+            long  waitMs = timeoutExpiredMs - System.currentTimeMillis();
+
+            try {
+                sleep(SLEEP_MS);
+            } catch (InterruptedException e) {
+                log.error("Exception caused during rule purging...");
+            }
+
+            if (stream(flowRuleService.getFlowEntriesById(appId)
+                                      .spliterator(), false).count() == 0) {
+                break;
+            } else {
+                flowRuleService.removeFlowRulesById(appId);
+                log.info("Failed to purging flow rules, retrying rule purging...");
+            }
+
+            if (waitMs <= 0) {
+                result = false;
+                break;
+            }
+        }
+
+        if (result) {
+            log.info("Successfully purged flow rules!");
+        } else {
+            log.warn("Failed to purge flow rules.");
+        }
+
+        return result;
     }
 
     private void configArpModeBase(String arpMode) {
@@ -368,5 +469,12 @@ public class OpenstackManagementWebResource extends AbstractWebResource {
 
         service.setProperty(switchingComponent, ARP_MODE_NAME, arpMode);
         service.setProperty(routingComponent, ARP_MODE_NAME, arpMode);
+    }
+
+    private void configStatefulSnatBase(boolean snatFlag) {
+        ComponentConfigService service = get(ComponentConfigService.class);
+        String snatComponent = OpenstackRoutingSnatHandler.class.getName();
+
+        service.setProperty(snatComponent, USE_STATEFUL_SNAT_NAME, String.valueOf(snatFlag));
     }
 }

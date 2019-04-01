@@ -18,34 +18,31 @@ package org.onosproject.drivers.p4runtime.mirror;
 
 import com.google.common.annotations.Beta;
 import com.google.common.collect.Maps;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
-
 import org.onlab.util.KryoNamespace;
-import org.onlab.util.SharedExecutors;
 import org.onosproject.net.Annotations;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.pi.runtime.PiEntity;
+import org.onosproject.net.pi.runtime.PiEntityType;
 import org.onosproject.net.pi.runtime.PiHandle;
-import org.onosproject.net.pi.service.PiPipeconfWatchdogEvent;
-import org.onosproject.net.pi.service.PiPipeconfWatchdogListener;
-import org.onosproject.net.pi.service.PiPipeconfWatchdogService;
+import org.onosproject.p4runtime.api.P4RuntimeWriteClient.EntityUpdateRequest;
+import org.onosproject.p4runtime.api.P4RuntimeWriteClient.WriteRequest;
+import org.onosproject.p4runtime.api.P4RuntimeWriteClient.WriteResponse;
+import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.EventuallyConsistentMap;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.WallClockTimestamp;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.onosproject.net.pi.service.PiPipeconfWatchdogService.PipelineStatus.READY;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -56,7 +53,6 @@ import static org.slf4j.LoggerFactory.getLogger;
  * @param <E> entry class
  */
 @Beta
-@Component(immediate = true)
 public abstract class AbstractDistributedP4RuntimeMirror
         <H extends PiHandle, E extends PiEntity>
         implements P4RuntimeMirror<H, E> {
@@ -64,45 +60,45 @@ public abstract class AbstractDistributedP4RuntimeMirror
     private final Logger log = getLogger(getClass());
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
-    private StorageService storageService;
+    protected StorageService storageService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY)
-    private PiPipeconfWatchdogService pipeconfWatchdogService;
+    private EventuallyConsistentMap<PiHandle, TimedEntry<E>> mirrorMap;
+    private EventuallyConsistentMap<PiHandle, Annotations> annotationsMap;
 
-    private EventuallyConsistentMap<H, TimedEntry<E>> mirrorMap;
+    private final PiEntityType entityType;
 
-    private EventuallyConsistentMap<H, Annotations> annotationsMap;
-
-    private final PiPipeconfWatchdogListener pipeconfListener =
-            new InternalPipeconfWatchdogListener();
+    AbstractDistributedP4RuntimeMirror(PiEntityType entityType) {
+        this.entityType = entityType;
+    }
 
     @Activate
     public void activate() {
+        final String mapName = "onos-p4runtime-mirror-"
+                + entityType.name().toLowerCase();
+        final KryoNamespace serializer = KryoNamespace.newBuilder()
+                .register(KryoNamespaces.API)
+                .register(TimedEntry.class)
+                .build();
+
         mirrorMap = storageService
-                .<H, TimedEntry<E>>eventuallyConsistentMapBuilder()
-                .withName(mapName())
-                .withSerializer(storeSerializer())
+                .<PiHandle, TimedEntry<E>>eventuallyConsistentMapBuilder()
+                .withName(mapName)
+                .withSerializer(serializer)
                 .withTimestampProvider((k, v) -> new WallClockTimestamp())
                 .build();
 
         annotationsMap = storageService
-                .<H, Annotations>eventuallyConsistentMapBuilder()
-                .withName(mapName() + "-annotations")
-                .withSerializer(storeSerializer())
+                .<PiHandle, Annotations>eventuallyConsistentMapBuilder()
+                .withName(mapName + "-annotations")
+                .withSerializer(serializer)
                 .withTimestampProvider((k, v) -> new WallClockTimestamp())
                 .build();
 
-        pipeconfWatchdogService.addListener(pipeconfListener);
         log.info("Started");
     }
 
-    abstract String mapName();
-
-    abstract KryoNamespace storeSerializer();
-
     @Deactivate
     public void deactivate() {
-        pipeconfWatchdogService.removeListener(pipeconfListener);
         mirrorMap.destroy();
         mirrorMap = null;
         log.info("Stopped");
@@ -127,14 +123,6 @@ public abstract class AbstractDistributedP4RuntimeMirror
     public void put(H handle, E entry) {
         checkNotNull(handle);
         checkNotNull(entry);
-        final PiPipeconfWatchdogService.PipelineStatus status =
-                pipeconfWatchdogService.getStatus(handle.deviceId());
-        if (!status.equals(READY)) {
-            log.info("Ignoring device mirror update because pipeline " +
-                             "status of {} is {}: {}",
-                     handle.deviceId(), status, entry);
-            return;
-        }
         final long now = new WallClockTimestamp().unixTimestamp();
         final TimedEntry<E> timedEntry = new TimedEntry<>(now, entry);
         mirrorMap.put(handle, timedEntry);
@@ -161,9 +149,12 @@ public abstract class AbstractDistributedP4RuntimeMirror
     }
 
     @Override
-    public void sync(DeviceId deviceId, Map<H, E> deviceState) {
+    @SuppressWarnings("unchecked")
+    public void sync(DeviceId deviceId, Collection<E> entities) {
         checkNotNull(deviceId);
-        final Map<H, E> localState = getMirrorMapForDevice(deviceId);
+        final Map<PiHandle, E> deviceState = entities.stream()
+                .collect(Collectors.toMap(e -> e.handle(deviceId), e -> e));
+        final Map<PiHandle, E> localState = deviceHandleMap(deviceId);
 
         final AtomicInteger removeCount = new AtomicInteger(0);
         final AtomicInteger updateCount = new AtomicInteger(0);
@@ -175,7 +166,7 @@ public abstract class AbstractDistributedP4RuntimeMirror
                     final E entryToAdd = deviceState.get(deviceHandle);
                     log.debug("Adding mirror entry for {}: {}",
                               deviceId, entryToAdd);
-                    put(deviceHandle, entryToAdd);
+                    put((H) deviceHandle, entryToAdd);
                     addCount.incrementAndGet();
                 });
         // Update or remove local entries.
@@ -184,53 +175,57 @@ public abstract class AbstractDistributedP4RuntimeMirror
             final E deviceEntry = deviceState.get(localHandle);
             if (deviceEntry == null) {
                 log.debug("Removing mirror entry for {}: {}", deviceId, localEntry);
-                remove(localHandle);
+                remove((H) localHandle);
                 removeCount.incrementAndGet();
             } else if (!deviceEntry.equals(localEntry)) {
                 log.debug("Updating mirror entry for {}: {}-->{}",
                           deviceId, localEntry, deviceEntry);
-                put(localHandle, deviceEntry);
+                put((H) localHandle, deviceEntry);
                 updateCount.incrementAndGet();
             }
         });
         if (removeCount.get() + updateCount.get() + addCount.get() > 0) {
-            log.info("Synchronized mirror entries for {}: {} removed, {} updated, {} added",
-                     deviceId, removeCount, updateCount, addCount);
+            log.info("Synchronized {} mirror for {}: {} removed, {} updated, {} added",
+                     entityType, deviceId, removeCount, updateCount, addCount);
         }
     }
 
-    private Set<H> getHandlesForDevice(DeviceId deviceId) {
-        return mirrorMap.keySet().stream()
-                .filter(h -> h.deviceId().equals(deviceId))
-                .collect(Collectors.toSet());
-    }
-
-    private Map<H, E> getMirrorMapForDevice(DeviceId deviceId) {
-        final Map<H, E> deviceMap = Maps.newHashMap();
+    private Map<PiHandle, E> deviceHandleMap(DeviceId deviceId) {
+        final Map<PiHandle, E> deviceMap = Maps.newHashMap();
         mirrorMap.entrySet().stream()
                 .filter(e -> e.getKey().deviceId().equals(deviceId))
                 .forEach(e -> deviceMap.put(e.getKey(), e.getValue().entry()));
         return deviceMap;
     }
 
-    private void removeAll(DeviceId deviceId) {
-        checkNotNull(deviceId);
-        Collection<H> handles = getHandlesForDevice(deviceId);
-        handles.forEach(this::remove);
+    @Override
+    public void applyWriteRequest(WriteRequest request) {
+        // Optimistically assume all requests will be successful.
+        applyUpdates(request.pendingUpdates());
     }
 
-    public class InternalPipeconfWatchdogListener implements PiPipeconfWatchdogListener {
-        @Override
-        public void event(PiPipeconfWatchdogEvent event) {
-            log.debug("Flushing mirror for {}, pipeline status is {}",
-                      event.subject(), event.type());
-            SharedExecutors.getPoolThreadExecutor().execute(
-                    () -> removeAll(event.subject()));
-        }
+    @Override
+    public void applyWriteResponse(WriteResponse response) {
+        // Record only successful updates.
+        applyUpdates(response.success());
+    }
 
-        @Override
-        public boolean isRelevant(PiPipeconfWatchdogEvent event) {
-            return event.type().equals(PiPipeconfWatchdogEvent.Type.PIPELINE_UNKNOWN);
-        }
+    @SuppressWarnings("unchecked")
+    private void applyUpdates(Collection<? extends EntityUpdateRequest> updates) {
+        updates.stream()
+                .filter(r -> r.entityType().equals(this.entityType))
+                .forEach(r -> {
+                    switch (r.updateType()) {
+                        case INSERT:
+                        case MODIFY:
+                            put((H) r.handle(), (E) r.entity());
+                            break;
+                        case DELETE:
+                            remove((H) r.handle());
+                            break;
+                        default:
+                            log.error("Unknown update type {}", r.updateType());
+                    }
+                });
     }
 }

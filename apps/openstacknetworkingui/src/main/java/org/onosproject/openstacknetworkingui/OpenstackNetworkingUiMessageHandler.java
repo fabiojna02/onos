@@ -43,11 +43,11 @@ import org.onosproject.net.host.HostService;
 import org.onosproject.net.topology.PathService;
 import org.onosproject.openstacknetworking.api.InstancePort;
 import org.onosproject.openstacknetworking.api.InstancePortService;
+import org.onosproject.openstacknetworking.api.OpenstackNetwork.Type;
 import org.onosproject.openstacknetworking.api.OpenstackNetworkService;
 import org.onosproject.openstacknode.api.OpenstackNode;
 import org.onosproject.openstacknode.api.OpenstackNodeService;
 import org.onosproject.openstacknode.api.OpenstackSshAuth;
-import org.onosproject.openstacktelemetry.api.StatsFlowRuleAdminService;
 import org.onosproject.ui.JsonUtils;
 import org.onosproject.ui.RequestHandler;
 import org.onosproject.ui.UiConnection;
@@ -75,6 +75,10 @@ import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.DefaultEdgeLink.createEdgeLink;
 import static org.onosproject.openstacknetworking.api.Constants.DEFAULT_GATEWAY_MAC_STR;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.GENEVE;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.GRE;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.VLAN;
+import static org.onosproject.openstacknetworking.api.OpenstackNetwork.Type.VXLAN;
 
 /**
  * OpenStack Networking UI message handler.
@@ -85,8 +89,6 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
     private static final String OPENSTACK_NETWORKING_UI_UPDATE = "openstackNetworkingUiUpdate";
     private static final String OPENSTACK_NETWORKING_UI_STOP = "openstackNetworkingUiStop";
     private static final String ANNOTATION_NETWORK_ID = "networkId";
-    private static final String FLOW_STATS_ADD_REQUEST = "flowStatsAddRequest";
-    private static final String FLOW_STATS_REMOVE_REQUEST = "flowStatsRemoveRequest";
     private static final String FLOW_TRACE_REQUEST = "flowTraceRequest";
     private static final String SRC_IP = "srcIp";
     private static final String DST_IP = "dstIp";
@@ -98,9 +100,6 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
     private static final String TRACE_RESULT = "traceResult";
     private static final String IS_SUCCESS = "isSuccess";
     private static final String TRACE_SUCCESS = "traceSuccess";
-    private static final String STATS_SUCCESS = "statsSuccess";
-    private static final String FLOW_STATS_ADD_RESULT = "flowStatsAddResult";
-    private static final String FLOW_STATS_REMOVE_RESULT = "flowStatsRemoveResult";
     private static final String FLOW_TRACE_RESULT = "flowTraceResult";
     private static final String SRC_DEVICE_ID = "srcDeviceId";
     private static final String DST_DEVICE_ID = "dstDeviceId";
@@ -109,8 +108,6 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
     private static final String OVS_VERSION_2_7 = "2.7";
     private static final String OVS_VERSION_2_6 = "2.6";
 
-    private static final String VXLAN = "VXLAN";
-    private static final String VLAN = "VLAN";
     private static final String DL_DST = "dl_dst=";
     private static final String NW_DST = "nw_dst=";
     private static final String DEFAULT_REQUEST_STRING = "sudo ovs-appctl ofproto/trace br-int ip";
@@ -133,7 +130,6 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
     private OpenstackNodeService osNodeService;
     private InstancePortService instancePortService;
     private OpenstackNetworkService osNetService;
-    private StatsFlowRuleAdminService statsFlowRuleService;
     private Mode currentMode = Mode.IDLE;
     private Element elementOfNote;
 
@@ -149,7 +145,6 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
         osNodeService = directory.get(OpenstackNodeService.class);
         instancePortService = directory.get(InstancePortService.class);
         osNetService = directory.get(OpenstackNetworkService.class);
-        statsFlowRuleService = directory.get(StatsFlowRuleAdminService.class);
     }
 
     @Override
@@ -158,8 +153,6 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
                 new DisplayStartHandler(),
                 new DisplayUpdateHandler(),
                 new DisplayStopHandler(),
-                new FlowStatsAddRequestHandler(),
-                new FlowStatsRemoveRequestHandler(),
                 new FlowTraceRequestHandler()
         );
     }
@@ -189,36 +182,6 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
                     currentMode = Mode.IDLE;
                     break;
             }
-        }
-    }
-
-    private final class FlowStatsAddRequestHandler extends RequestHandler {
-        public FlowStatsAddRequestHandler() {
-            super(FLOW_STATS_ADD_REQUEST);
-        }
-
-        @Override
-        public void process(ObjectNode payload) {
-            String srcIp = string(payload, SRC_IP);
-            String dstIp = string(payload, DST_IP);
-            log.info("Flow statistics add request called with src IP: {}, dst IP: {}",
-                    srcIp, dstIp);
-            eventExecutor.execute(() -> processFlowStatsRequest(srcIp, dstIp, true));
-        }
-    }
-
-    private final class FlowStatsRemoveRequestHandler extends RequestHandler {
-        public FlowStatsRemoveRequestHandler() {
-            super(FLOW_STATS_REMOVE_REQUEST);
-        }
-
-        @Override
-        public void process(ObjectNode payload) {
-            String srcIp = string(payload, SRC_IP);
-            String dstIp = string(payload, DST_IP);
-            log.info("Flow statistics removal request called with src IP: {}, dst IP: {}",
-                    srcIp, dstIp);
-            eventExecutor.execute(() -> processFlowStatsRequest(srcIp, dstIp, false));
         }
     }
 
@@ -439,16 +402,6 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
         return NodeBadge.number(Status.INFO, n, "Openstack Node");
     }
 
-    private void processFlowStatsRequest(String srcIp, String dstIp, Boolean install) {
-        boolean statsSuccess = true;
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectNode statsResult = mapper.createObjectNode();
-
-        statsFlowRuleService.setStatFlowL2Rule(srcIp, dstIp, install);
-        statsResult.put(STATS_SUCCESS, statsSuccess);
-        sendMessagetoUi(FLOW_STATS_ADD_RESULT, statsResult);
-    }
-
     private void processFlowTraceRequest(String srcIp, String dstIp, String srcDeviceId, String dstDeviceId,
                                          boolean uplink) {
         boolean traceSuccess = true;
@@ -517,7 +470,8 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
 
     }
 
-    private String sendTraceRequestToNode(String srcIp, String dstIp, OpenstackNode openstackNode, boolean uplink) {
+    private String sendTraceRequestToNode(String srcIp, String dstIp,
+                                          OpenstackNode openstackNode, boolean uplink) {
 
         Optional<InstancePort> instancePort = instancePortService.instancePorts().stream()
                 .filter(port -> port.ipAddress().getIp4Address().toString().equals(srcIp)
@@ -552,8 +506,9 @@ public class OpenstackNetworkingUiMessageHandler extends UiMessageHandler {
                     .append(srcIp)
                     .append(COMMA);
 
-            if (osNetService.networkType(srcInstancePort.networkId()).equals(VXLAN) ||
-                    osNetService.networkType(srcInstancePort.networkId()).equals(VLAN)) {
+            Type netType = osNetService.networkType(srcInstancePort.networkId());
+
+            if (netType == VXLAN || netType == VLAN || netType == GRE || netType == GENEVE) {
                 if (srcIp.equals(dstIp)) {
                     dstIp = osNetService.gatewayIp(srcInstancePort.portId());
                     requestStringBuilder.append(DL_DST)

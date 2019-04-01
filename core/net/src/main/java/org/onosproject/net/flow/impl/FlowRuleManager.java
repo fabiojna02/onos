@@ -258,6 +258,13 @@ public class FlowRuleManager
     }
 
     @Override
+    public int getFlowRuleCount(DeviceId deviceId, FlowEntry.FlowEntryState state) {
+        checkPermission(FLOWRULE_READ);
+        checkNotNull(deviceId, "Device ID cannot be null");
+        return store.getFlowRuleCount(deviceId, state);
+    }
+
+    @Override
     public Iterable<FlowEntry> getFlowEntries(DeviceId deviceId) {
         checkPermission(FLOWRULE_READ);
         checkNotNull(deviceId, DEVICE_ID_NULL);
@@ -296,13 +303,6 @@ public class FlowRuleManager
     @Override
     public void removeFlowRulesById(ApplicationId id) {
         checkPermission(FLOWRULE_WRITE);
-        removeFlowRules(Iterables.toArray(getFlowRulesById(id), FlowRule.class));
-    }
-
-    @Deprecated
-    @Override
-    public Iterable<FlowRule> getFlowRulesById(ApplicationId id) {
-        checkPermission(FLOWRULE_READ);
 
         Set<FlowRule> flowEntries = Sets.newHashSet();
         for (Device d : deviceService.getDevices()) {
@@ -312,7 +312,7 @@ public class FlowRuleManager
                 }
             }
         }
-        return flowEntries;
+        removeFlowRules(Iterables.toArray(flowEntries, FlowRule.class));
     }
 
     @Override
@@ -645,17 +645,18 @@ public class FlowRuleManager
                 break;
 
             case BATCH_OPERATION_COMPLETED:
-
+                // Operation completed, let's retrieve the processor and trigger the callback
                 FlowOperationsProcessor fops = pendingFlowOperations.remove(
                         event.subject().batchId());
-                if (event.result().isSuccess()) {
-                    if (fops != null) {
+                if (fops != null) {
+                    if (event.result().isSuccess()) {
                         fops.satisfy(event.deviceId());
+                    } else {
+                        fops.fail(event.deviceId(), event.result().failedItems());
                     }
                 } else {
-                    fops.fail(event.deviceId(), event.result().failedItems());
+                    log.warn("Unable to find flow operations processor for batch: {}", event.subject().batchId());
                 }
-
                 break;
 
             default:

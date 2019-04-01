@@ -35,12 +35,13 @@ import org.onosproject.openstacknetworking.api.OpenstackFlowRuleService;
 
 import java.util.Optional;
 
+import static org.onosproject.cli.AbstractShellCommand.get;
 import static org.onosproject.openstacknetworking.api.Constants.DHCP_TABLE;
 import static org.onosproject.openstacknetworking.api.Constants.OPENSTACK_NETWORKING_APP_ID;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_FORCED_ACL_RULE;
 
 /**
- * Add acl.
+ * Adds a acl.
  */
 @Service
 @Command(scope = "onos", name = "openstack-add-acl",
@@ -61,23 +62,23 @@ public class OpenstackAddAclCommand extends AbstractShellCommand {
     @Override
     protected void doExecute() {
 
-        OpenstackFlowRuleService flowRuleService = AbstractShellCommand.get(OpenstackFlowRuleService.class);
-        CoreService coreService = AbstractShellCommand.get(CoreService.class);
+        OpenstackFlowRuleService flowRuleService = get(OpenstackFlowRuleService.class);
+        CoreService coreService = get(CoreService.class);
 
         ApplicationId appId = coreService.getAppId(OPENSTACK_NETWORKING_APP_ID);
 
-        InstancePortService instancePortService = AbstractShellCommand.get(InstancePortService.class);
+        InstancePortService instancePortService = get(InstancePortService.class);
 
-        IpAddress srcIpAddress = null;
+        IpAddress srcIpAddress;
 
-        IpAddress dstIpAddress = null;
+        IpAddress dstIpAddress;
 
         try {
             srcIpAddress = IpAddress.valueOf(srcIpStr);
 
             dstIpAddress = IpAddress.valueOf(dstIpStr);
         } catch (IllegalArgumentException e) {
-            log.error("IllegalArgumentException occurred because of {}", e.toString());
+            log.error("IllegalArgumentException occurred because of {}", e);
             return;
         }
 

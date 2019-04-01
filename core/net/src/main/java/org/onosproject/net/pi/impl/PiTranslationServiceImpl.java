@@ -23,7 +23,7 @@ import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.group.Group;
 import org.onosproject.net.meter.Meter;
 import org.onosproject.net.pi.model.PiPipeconf;
-import org.onosproject.net.pi.runtime.PiActionGroup;
+import org.onosproject.net.pi.runtime.PiActionProfileGroup;
 import org.onosproject.net.pi.runtime.PiMeterCellConfig;
 import org.onosproject.net.pi.runtime.PiMulticastGroupEntry;
 import org.onosproject.net.pi.runtime.PiTableEntry;
@@ -44,6 +44,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Implementation of the PI translation service.
@@ -131,13 +133,15 @@ public class PiTranslationServiceImpl implements PiTranslationService {
         @Override
         public PiTableEntry translate(FlowRule original, PiPipeconf pipeconf)
                 throws PiTranslationException {
+            checkNotNull(original);
+            checkNotNull(pipeconf);
             return PiFlowRuleTranslatorImpl
                     .translate(original, pipeconf, getDevice(original.deviceId()));
         }
     }
 
     private final class InternalGroupTranslator
-            extends AbstractPiTranslatorImpl<Group, PiActionGroup>
+            extends AbstractPiTranslatorImpl<Group, PiActionProfileGroup>
             implements PiGroupTranslator {
 
         private InternalGroupTranslator(PiGroupTranslationStore store) {
@@ -145,8 +149,10 @@ public class PiTranslationServiceImpl implements PiTranslationService {
         }
 
         @Override
-        public PiActionGroup translate(Group original, PiPipeconf pipeconf)
+        public PiActionProfileGroup translate(Group original, PiPipeconf pipeconf)
                 throws PiTranslationException {
+            checkNotNull(original);
+            checkNotNull(pipeconf);
             return PiGroupTranslatorImpl
                     .translate(original, pipeconf, getDevice(original.deviceId()));
         }
@@ -163,6 +169,8 @@ public class PiTranslationServiceImpl implements PiTranslationService {
         @Override
         public PiMulticastGroupEntry translate(Group original, PiPipeconf pipeconf)
                 throws PiTranslationException {
+            checkNotNull(original);
+            checkNotNull(pipeconf);
             return PiMulticastGroupTranslatorImpl.translate(
                     original, pipeconf, getDevice(original.deviceId()));
         }
@@ -179,6 +187,8 @@ public class PiTranslationServiceImpl implements PiTranslationService {
         @Override
         public PiMeterCellConfig translate(Meter original, PiPipeconf pipeconf)
                 throws PiTranslationException {
+            checkNotNull(original);
+            checkNotNull(pipeconf);
             return PiMeterTranslatorImpl
                     .translate(original, pipeconf, getDevice(original.deviceId()));
         }

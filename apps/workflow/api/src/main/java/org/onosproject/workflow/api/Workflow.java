@@ -16,6 +16,7 @@
 package org.onosproject.workflow.api;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -38,12 +39,20 @@ public interface Workflow {
     Worklet init(WorkflowContext context) throws WorkflowException;
 
     /**
-     * Returns next worklet.
+     * Returns next program counter.
      * @param context workflow context
-     * @return next worklet
+     * @return next program counter
      * @throws WorkflowException workflow exception
      */
-    Worklet next(WorkflowContext context) throws WorkflowException;
+    ProgramCounter next(WorkflowContext context) throws WorkflowException;
+
+    /**
+     * Gets increased program coounter.
+     * @param pc program counter
+     * @return increased program counter
+     * @throws WorkflowException workflow exception
+     */
+    ProgramCounter increased(ProgramCounter pc) throws WorkflowException;
 
     /**
      * Returns instance of worklet.
@@ -76,4 +85,10 @@ public interface Workflow {
      * @return attributes
      */
     Set<WorkflowAttribute> attributes();
+
+    /**
+     * Returns worklet type list.
+     * @return worklet type
+     */
+    List<String> getWorkletTypeList();
 }

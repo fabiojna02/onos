@@ -69,7 +69,17 @@ public class OpenstackNodeAdapter implements OpenstackNode {
     }
 
     @Override
-    public PortNumber tunnelPortNum() {
+    public PortNumber greTunnelPortNum() {
+        return null;
+    }
+
+    @Override
+    public PortNumber vxlanTunnelPortNum() {
+        return null;
+    }
+
+    @Override
+    public PortNumber geneveTunnelPortNum() {
         return null;
     }
 

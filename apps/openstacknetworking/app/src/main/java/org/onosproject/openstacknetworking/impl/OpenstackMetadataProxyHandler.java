@@ -17,12 +17,8 @@
 package org.onosproject.openstacknetworking.impl;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.apache.http.Header;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpMessage;
@@ -69,14 +65,25 @@ import org.onosproject.openstacknode.api.OpenstackNode;
 import org.onosproject.openstacknode.api.OpenstackNodeEvent;
 import org.onosproject.openstacknode.api.OpenstackNodeListener;
 import org.onosproject.openstacknode.api.OpenstackNodeService;
+import org.openstack4j.model.network.Network;
 import org.openstack4j.model.network.Port;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.openstacknetworking.api.Constants.DHCP_TABLE;
 import static org.onosproject.openstacknetworking.api.Constants.PRIORITY_DHCP_RULE;
 import static org.onosproject.openstacknetworking.impl.OpenstackMetadataProxyHandler.Http.Type.RESPONSE;
@@ -105,11 +112,15 @@ public class OpenstackMetadataProxyHandler {
     private static final short ACK_FLAG = (short) 0x10;
     private static final short SYN_ACK_FLAG = (short) 0x12;
     private static final short FIN_ACK_FLAG = (short) 0x11;
+    private static final short FIN_ACK_PUSH_FLAG = (short) 0x19;
     private static final byte DATA_OFFSET = (byte) 0x5;
     private static final short URGENT_POINTER = (short) 0x1;
     private static final byte PACKET_TTL = (byte) 127;
     private static final String HTTP_PREFIX = "http://";
     private static final String COLON = ":";
+
+    private static final int IP_HEADER_SIZE = 20;
+    private static final int TCP_HEADER_SIZE = 20;
 
     private static final String INSTANCE_ID_HEADER = "X-Instance-ID";
     private static final String INSTANCE_ID_SIGNATURE_HEADER = "X-Instance-ID-Signature";
@@ -145,6 +156,8 @@ public class OpenstackMetadataProxyHandler {
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected OpenstackFlowRuleService osFlowRuleService;
 
+    private final ExecutorService eventExecutor = newSingleThreadExecutor(
+            groupedThreads(this.getClass().getSimpleName(), "event-handler", log));
     private final PacketProcessor packetProcessor = new InternalPacketProcessor();
     private final OpenstackNodeListener osNodeListener = new InternalNodeEventListener();
 
@@ -169,6 +182,7 @@ public class OpenstackMetadataProxyHandler {
         packetService.removeProcessor(packetProcessor);
         osNodeService.removeListener(osNodeListener);
         leadershipService.withdraw(appId.name());
+        eventExecutor.shutdown();
 
         log.info("Stopped");
     }
@@ -178,11 +192,12 @@ public class OpenstackMetadataProxyHandler {
         @Override
         public void process(PacketContext context) {
 
-            if (!useMetadataProxy()) {
+            if (context.isHandled()) {
                 return;
             }
 
-            if (context.isHandled()) {
+            // FIXME: need to find a way to spawn a new thread to check metadata proxy mode
+            if (!useMetadataProxy()) {
                 return;
             }
 
@@ -226,41 +241,51 @@ public class OpenstackMetadataProxyHandler {
             byte[] byteData = data.getData();
 
             if (byteData.length != 0) {
-                HttpRequest request = parseHttpRequest(byteData);
-                ConnectPoint cp = context.inPacket().receivedFrom();
-                InstancePort instPort = instancePortService.instancePort(cp.deviceId(), cp.port());
+                eventExecutor.execute(() -> {
+                    processHttpRequest(context, ethPacket, ipv4Packet, tcpPacket, byteData);
+                });
+            }
+        }
 
-                if (instPort == null || request == null) {
-                    log.warn("Cannot send metadata request due to lack of information");
-                    return;
-                }
+        private void processHttpRequest(PacketContext context, Ethernet ethPacket,
+                                        IPv4 ipv4Packet, TCP tcpPacket, byte[] byteData) {
+            HttpRequest request = parseHttpRequest(byteData);
+            ConnectPoint cp = context.inPacket().receivedFrom();
+            InstancePort instPort = instancePortService.instancePort(cp.deviceId(), cp.port());
 
-                // attempt to send HTTP request to the meta-data server (nova-api),
-                // obtain the HTTP response, relay the response to VM through packet-out
-                CloseableHttpResponse proxyResponse = proxyHttpRequest(request, instPort);
+            if (instPort == null || request == null) {
+                log.warn("Cannot send metadata request due to lack of information");
+                return;
+            }
 
-                if (proxyResponse == null) {
-                    log.warn("No response was received from metadata server");
-                    return;
-                }
+            // attempt to send HTTP request to the meta-data server (nova-api),
+            // obtain the HTTP response, relay the response to VM through packet-out
+            CloseableHttpResponse proxyResponse = proxyHttpRequest(request, instPort);
 
-                HttpResponse response = new BasicHttpResponse(proxyResponse.getStatusLine());
-                response.setEntity(proxyResponse.getEntity());
-                response.setHeaders(proxyResponse.getAllHeaders());
+            if (proxyResponse == null) {
+                log.warn("No response was received from metadata server");
+                return;
+            } else {
+                log.debug("Metadata response headers {}", Arrays.toString(proxyResponse.getAllHeaders()));
+                log.debug("Metadata response entity {}", proxyResponse.getEntity().toString());
+            }
 
-                Http httpResponse = new Http();
-                httpResponse.setType(RESPONSE);
-                httpResponse.setMessage(response);
+            HttpResponse response = new BasicHttpResponse(proxyResponse.getStatusLine());
+            response.setEntity(proxyResponse.getEntity());
+            response.setHeaders(proxyResponse.getAllHeaders());
 
-                TCP tcpReply = buildTcpDataPacket(tcpPacket, byteData.length, response);
-                Ethernet ethReply = buildEthFrame(ethPacket, ipv4Packet, tcpReply);
-                sendReply(context, ethReply);
+            Network osNetwork = osNetworkService.network(instPort.networkId());
+            int tcpPayloadSize = osNetwork.getMTU() - IP_HEADER_SIZE - TCP_HEADER_SIZE;
 
-                try {
-                    proxyResponse.close();
-                } catch (IOException e) {
-                    log.warn("Failed to close the response connection due to {}", e);
-                }
+            List<TCP> tcpReplies = buildTcpDataPackets(tcpPacket,
+                    byteData.length, response, tcpPayloadSize);
+            List<Ethernet> ethReplies = buildEthFrames(ethPacket, ipv4Packet, tcpReplies);
+            ethReplies.forEach(e -> sendReply(context, e));
+
+            try {
+                proxyResponse.close();
+            } catch (IOException e) {
+                log.warn("Failed to close the response connection due to {}", e);
             }
         }
 
@@ -345,25 +370,70 @@ public class OpenstackMetadataProxyHandler {
          * @param response      HTTP response
          * @return a TCP data packet
          */
-        private TCP buildTcpDataPacket(TCP tcpRequest, int requestLength,
-                                       HttpResponse response) {
-            TCP tcpReply = new TCP();
-            tcpReply.setSourcePort(tcpRequest.getDestinationPort());
-            tcpReply.setDestinationPort(tcpRequest.getSourcePort());
-            tcpReply.setSequence(tcpRequest.getAcknowledge());
-            tcpReply.setAcknowledge(tcpRequest.getSequence() + requestLength);
-            tcpReply.setDataOffset(DATA_OFFSET);        // no options
-            tcpReply.setFlags(ACK_FLAG);
-            tcpReply.setWindowSize(WINDOW_SIZE);
-            tcpReply.setUrgentPointer(URGENT_POINTER);
+        private List<TCP> buildTcpDataPackets(TCP tcpRequest, int requestLength,
+                                              HttpResponse response, int payloadSize) {
+            List<TCP> tcpReplies = Lists.newArrayList();
 
             Http httpResponse = new Http();
             httpResponse.setType(RESPONSE);
             httpResponse.setMessage(response);
 
-            tcpReply.setPayload(httpResponse);
+            byte[] httpBytes = httpResponse.serialize();
 
-            return tcpReply;
+            int numOfSegments = (int) Math.ceil((double) httpBytes.length / payloadSize);
+
+            if (numOfSegments == 1) {
+                TCP tcpReply = new TCP();
+                tcpReply.setSourcePort(tcpRequest.getDestinationPort());
+                tcpReply.setDestinationPort(tcpRequest.getSourcePort());
+                tcpReply.setSequence(tcpRequest.getAcknowledge());
+                tcpReply.setAcknowledge(tcpRequest.getSequence() + requestLength);
+                tcpReply.setDataOffset(DATA_OFFSET);        // no options, 20 bytes
+                tcpReply.setFlags(ACK_FLAG);
+                tcpReply.setWindowSize(WINDOW_SIZE);
+                tcpReply.setUrgentPointer(URGENT_POINTER);
+
+                Data data = new Data(httpBytes);
+                tcpReply.setPayload(data);
+
+                tcpReplies.add(tcpReply);
+            }
+
+            if (numOfSegments > 1) {
+
+                for (int i = 0; i < numOfSegments; i++) {
+
+                    int byteStartIndex = i * payloadSize;
+                    int byteEndIndex;
+
+                    TCP tcpReply = new TCP();
+                    tcpReply.setSourcePort(tcpRequest.getDestinationPort());
+                    tcpReply.setDestinationPort(tcpRequest.getSourcePort());
+                    tcpReply.setSequence(tcpRequest.getAcknowledge() + byteStartIndex);
+                    tcpReply.setAcknowledge(tcpRequest.getSequence() + requestLength);
+                    tcpReply.setDataOffset(DATA_OFFSET);        // no options, 20 bytes
+                    tcpReply.setWindowSize(WINDOW_SIZE);
+                    tcpReply.setUrgentPointer(URGENT_POINTER);
+
+                    if (i == numOfSegments - 1) {
+                        tcpReply.setFlags(FIN_ACK_PUSH_FLAG);
+                        byteEndIndex = httpBytes.length;
+                    } else {
+                        tcpReply.setFlags(ACK_FLAG);
+                        byteEndIndex = (i + 1) * payloadSize;
+                    }
+
+                    byte[] httpSegmentBytes = Arrays.copyOfRange(httpBytes,
+                            byteStartIndex, byteEndIndex);
+
+                    Data data = new Data(httpSegmentBytes);
+                    tcpReply.setPayload(data);
+
+                    tcpReplies.add(tcpReply);
+                }
+            }
+
+            return tcpReplies;
         }
 
         /**
@@ -390,6 +460,43 @@ public class OpenstackMetadataProxyHandler {
             ethReply.setPayload(ipv4Reply);
 
             return ethReply;
+        }
+
+        /**
+         * Builds a set of ethernet frames with the given IPv4 and TCP payload.
+         *
+         * @param ethRequest    ethernet request frame
+         * @param ipv4Request   IPv4 request
+         * @param tcpReplies      TCP replies
+         * @return a set of ethernet frames
+         */
+        private List<Ethernet> buildEthFrames(Ethernet ethRequest,
+                                              IPv4 ipv4Request,
+                                              List<TCP> tcpReplies) {
+
+            List<Ethernet> ethReplies = Lists.newArrayList();
+
+            for (TCP tcpReply : tcpReplies) {
+
+                Ethernet ethReply = new Ethernet();
+                ethReply.setSourceMACAddress(ethRequest.getDestinationMAC());
+                ethReply.setDestinationMACAddress(ethRequest.getSourceMAC());
+                ethReply.setEtherType(ethRequest.getEtherType());
+
+                IPv4 ipv4Reply = new IPv4();
+                ipv4Reply.setSourceAddress(ipv4Request.getDestinationAddress());
+                ipv4Reply.setDestinationAddress(ipv4Request.getSourceAddress());
+                ipv4Reply.setTtl(PACKET_TTL);
+
+                ipv4Reply.setProtocol(IPv4.PROTOCOL_TCP);
+                ipv4Reply.setPayload(tcpReply);
+
+                ethReply.setPayload(ipv4Reply);
+
+                ethReplies.add(ethReply);
+            }
+
+            return ethReplies;
         }
 
         /**
@@ -440,9 +547,6 @@ public class OpenstackMetadataProxyHandler {
             log.info("Sending HTTP {} request to metadata endpoint {}...", method, url);
 
             switch (method) {
-                case HTTP_GET_METHOD:
-                    request = new HttpGet(url);
-                    break;
                 case HTTP_POST_METHOD:
                     request = new HttpPost(url);
                     HttpEntityEnclosingRequest postRequest =
@@ -458,6 +562,7 @@ public class OpenstackMetadataProxyHandler {
                 case HTTP_DELETE_METHOD:
                     request = new HttpDelete(url);
                     break;
+                case HTTP_GET_METHOD:
                 default:
                     request = new HttpGet(url);
                     break;
@@ -481,7 +586,8 @@ public class OpenstackMetadataProxyHandler {
 
             request.addHeader(new BasicHeader(INSTANCE_ID_HEADER, port.getDeviceId()));
             request.addHeader(new BasicHeader(TENANT_ID_HEADER, port.getTenantId()));
-            request.addHeader(new BasicHeader(FORWARDED_FOR_HEADER, instPort.ipAddress().toString()));
+            request.addHeader(new BasicHeader(FORWARDED_FOR_HEADER,
+                                                instPort.ipAddress().toString()));
             if (metadataSecret() != null) {
                 request.addHeader(new BasicHeader(INSTANCE_ID_SIGNATURE_HEADER,
                         hmacEncrypt(metadataSecret(), port.getDeviceId())));
@@ -518,15 +624,28 @@ public class OpenstackMetadataProxyHandler {
                     ByteBuffer.wrap(ethReply.serialize())));
             context.block();
         }
+
+        private String metadataSecret() {
+            OpenstackNode controller = osNodeService.completeNodes(CONTROLLER)
+                    .stream().findFirst().orElse(null);
+
+            if (controller != null && controller.neutronConfig() != null) {
+                return controller.neutronConfig().metadataProxySecret();
+            }
+
+            return null;
+        }
     }
 
     private class InternalNodeEventListener implements OpenstackNodeListener {
         @Override
         public boolean isRelevant(OpenstackNodeEvent event) {
-            // do not allow to proceed without leadership
-            NodeId leader = leadershipService.getLeader(appId.name());
-            return Objects.equals(localNodeId, leader) &&
-                    event.subject().type() == COMPUTE && useMetadataProxy();
+            return event.subject().type() == COMPUTE;
+        }
+
+        private boolean isRelevantHelper() {
+            return Objects.equals(localNodeId, leadershipService.getLeader(appId.name()))
+                    && useMetadataProxy();
         }
 
         @Override
@@ -534,10 +653,10 @@ public class OpenstackMetadataProxyHandler {
             OpenstackNode osNode = event.subject();
             switch (event.type()) {
                 case OPENSTACK_NODE_COMPLETE:
-                    setMetadataRule(osNode, true);
+                    eventExecutor.execute(() -> processNodeCompletion(osNode));
                     break;
                 case OPENSTACK_NODE_INCOMPLETE:
-                    setMetadataRule(osNode, false);
+                    eventExecutor.execute(() -> processNodeIncompletion(osNode));
                     break;
                 case OPENSTACK_NODE_CREATED:
                 case OPENSTACK_NODE_UPDATED:
@@ -545,6 +664,22 @@ public class OpenstackMetadataProxyHandler {
                 default:
                     break;
             }
+        }
+
+        private void processNodeCompletion(OpenstackNode osNode) {
+            if (!isRelevantHelper()) {
+                return;
+            }
+
+            setMetadataRule(osNode, true);
+        }
+
+        private void processNodeIncompletion(OpenstackNode osNode) {
+            if (!isRelevantHelper()) {
+                return;
+            }
+
+            setMetadataRule(osNode, false);
         }
 
         /**
@@ -588,22 +723,14 @@ public class OpenstackMetadataProxyHandler {
         return false;
     }
 
-    private String metadataSecret() {
-        OpenstackNode controller = osNodeService.completeNodes(CONTROLLER)
-                .stream().findFirst().orElse(null);
-
-        if (controller != null && controller.neutronConfig() != null) {
-            return controller.neutronConfig().metadataProxySecret();
-        }
-
-        return null;
-    }
-
     /**
      * Implements Http packet format.
      */
     protected static class Http extends BasePacket {
 
+        /**
+         * HTTP packet type.
+         */
         public enum Type {
 
             /**
@@ -619,6 +746,9 @@ public class OpenstackMetadataProxyHandler {
 
         private Type type;
         private HttpMessage message;
+
+        Http() {
+        }
 
         /**
          * Obtains the Http type.

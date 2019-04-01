@@ -17,9 +17,9 @@
 """
     Rules to build the ONOS GUI 2
 
-    The GUI2 Angular 6 elements are built here with Angular CLI 'ng'
+    The GUI2 Angular 7 elements are built here with Angular CLI 'ng'
     Some work is being done in the Bazel community to integrate Bazel and
-    Angular 6, (Angular Buildtools Convergence -
+    Angular 7, (Angular Buildtools Convergence -
     https://docs.google.com/document/d/1OlyiUnoTirUj4gecGxJeZBcjHcFr36RvLsvpBl2mxA8/preview)
     but it is in the very early stages (Aug'18) and not yet fit
     for production and at present it works as a replacement for Angular CLI
@@ -37,13 +37,15 @@
     the build is still hermetic since those files are referred to as dependencies in the genrule.
 """
 
-COMPILE_DEPS = CORE_DEPS + JACKSON + KRYO + [
+COMPILE_DEPS = CORE_DEPS + JACKSON + KRYO + CLI + [
     "@javax_ws_rs_api//jar",
     "@servlet_api//jar",
     "@jetty_websocket//jar",
+    "@jetty_websocket_api//jar",
     "@jetty_util//jar",
     "@jersey_media_multipart//jar",
     "@jersey_server//jar",
+    "@jersey_hk2//jar",
     "//utils/rest:onlab-rest",
     "//core/store/serializers:onos-core-serializers",
 ]
@@ -102,7 +104,7 @@ filegroup(
     See bazel-genfiles/web/gui2/onos-gui2-ng-build-prod.log for details of the Angular CLI output
 
     To avoid the overhead of having several "npm install" invocations, we just do
-    it once in the //web/gui2-fw-lib which is really the core for the whole Angular 6
+    it once in the //web/gui2-fw-lib which is really the core for the whole Angular 7
     structure in ONOS. This copies files in to node_modules, but because the gui2-fw-lib
     has not been generated at that time we copy it in separately below with the 'tar' cmd
     and then 'mv'
@@ -113,12 +115,12 @@ genrule(
     srcs = [
         "@nodejs//:bin/npm",
         "@nodejs//:bin/node",
-        "@nodejs//:bin/node.js",
         "@nodejs//:bin/nodejs/bin/node",
         "@nodejs//:bin/nodejs/bin/npm",
         "//web/gui2-fw-lib:onos-gui2-fw-npm-install",
         "//web/gui2-fw-lib:onos-gui2-fw-ng-build",
         "//web/gui2-fw-lib:gui2_fw_lib_ext_css",
+        "//web/gui2-topo-lib:gui2-topo-lib-build",
         "//apps/faultmanagement/fm-gui2-lib:fm-gui2-lib-build",
         ":_root_level_files",
         ":_web_app_all",
@@ -139,6 +141,9 @@ genrule(
           " tar xf $$ROOT/$${FWLIB_FILES[0]} &&" +
           " mv package/ node_modules/gui2-fw-lib/ &&" +
           # Add in modules from external packages
+          " GUI2_TOPO_LIB_FILES=($(locations //web/gui2-topo-lib:gui2-topo-lib-build)) &&" +  # An array of filenames - sorted by time created
+          " tar xf $$ROOT/$${GUI2_TOPO_LIB_FILES[0]} &&" +
+          " mv package/ node_modules/gui2-topo-lib/ &&" +
           " FM_GUI2_LIB_FILES=($(locations //apps/faultmanagement/fm-gui2-lib:fm-gui2-lib-build)) &&" +  # An array of filenames - sorted by time created
           " tar xf $$ROOT/$${FM_GUI2_LIB_FILES[0]} &&" +
           " mv package/ node_modules/fm-gui2-lib/ &&" +
@@ -150,10 +155,9 @@ genrule(
           " export PATH=$$ROOT/$$(dirname $${NODE}):$$ROOT/web/gui2/node_modules/@angular/cli/bin:$$PATH &&" +
           " node -v > ../../$(location onos-gui2-ng-build-prod.log) &&" +
           " npm -v >> ../../$(location onos-gui2-ng-build-prod.log) &&" +
-          " ng -v >> ../../$(location onos-gui2-ng-build-prod.log) &&" +
-          # Build it in production mode - optimization is turned off because of Angular CLI 6.0.x bug https://github.com/angular/angular-cli/issues/7799
-          " ng build --extract-css --prod --optimization=false --preserve-symlinks" +
-          "   --base-href /onos/ui2/ --deploy-url /onos/ui2/ >> $$ROOT/$(location onos-gui2-ng-build-prod.log) 2>&1 ||" +
+          " ng version >> ../../$(location onos-gui2-ng-build-prod.log) &&" +
+          " ng build --extract-css --prod --preserve-symlinks" +
+          "   --base-href /onos/ui/ --deploy-url /onos/ui/ >> $$ROOT/$(location onos-gui2-ng-build-prod.log) 2>&1 ||" +
           " if [ $$? -eq 0 ]; then echo 'Successfully ran build';" +
           " else " +
           "   echo 'Error running \'ng build\' on \'//web/gui2:_onos-gui2-ng-build\'. \\\n" +
@@ -162,7 +166,7 @@ genrule(
           "   exit 1;" +
           " fi;" +
           " cd src/main/webapp/dist && jar Mcf $$ROOT/$(location onos-gui2-ng-build.jar) .",
-    message = "Angular CLI 6 build",
+    message = "Angular CLI 7 build",
 )
 
 """
@@ -176,7 +180,6 @@ genrule(
     srcs = [
         "@nodejs//:bin/npm",
         "@nodejs//:bin/node",
-        "@nodejs//:bin/node.js",
         "@nodejs//:bin/nodejs/bin/node",
         "@nodejs//:bin/nodejs/bin/npm",
         "//web/gui2-fw-lib:onos-gui2-fw-npm-install",
@@ -212,8 +215,14 @@ genrule(
           " export PATH=$$ROOT/$$(dirname $${NODE}):$$ROOT/web/gui2/node_modules/@angular/cli/bin:$$PATH &&" +
           " node -v > ../../$(location onos-gui2-ng-ver.log) &&" +
           " npm -v >> ../../$(location onos-gui2-ng-ver.log) &&" +
-          " ng -v >> ../../$(location onos-gui2-ng-ver.log) &&" +
-          " ng lint > ../../$(location onos-gui2-ng-lint.log);" +
+          " ng version >> ../../$(location onos-gui2-ng-ver.log);" +
+          " ng lint > ../../$(location onos-gui2-ng-lint.log) 2>&1 ||" +
+          " if [ $$? -eq 0 ]; then echo 'Successfully ran lint';" +
+          " else " +
+          "   echo 'Error running \'ng lint\' on \'//web/gui2:onos-gui2-ng-test\'. \\\n" +
+          "     See bazel-genfiles/web/gui2/onos-gui2-ng-lint.log for more details' >&2;" +
+          "   exit 1;" +
+          " fi;" +
           " if [ -f /usr/bin/chromium-browser ]; then " +  # Add to this for Mac and Chrome
           "   export CHROME_BIN=/usr/bin/chromium-browser; " +
           " elif [ -f /opt/google/chrome/chrome ]; then " +
@@ -235,7 +244,7 @@ genrule(
           #"   tail -n 100 ../../$(location onos-gui2-ng-test.log) >&2;" +
           "   exit 1;" +
           " fi;",
-    message = "Angular CLI 6 lint and test",
+    message = "Angular CLI 7 lint and test",
 )
 
 """
@@ -312,9 +321,17 @@ osgi_jar_with_tests(
         ]) + [
             "//web/gui:onos-gui-java-for-gui2",
         ],
+    exclude_tests = [
+        "org.onosproject.ui.impl.AbstractUiImplTest",
+        "org.onosproject.ui.impl.topo.model.AbstractTopoModelTest",
+    ],
+    karaf_command_packages = [
+        "org.onosproject.ui.impl.cli",
+        "org.onosproject.ui.impl.topo",
+    ],
     suppress_checkstyle = True,
     test_deps = TEST_DEPS,
-    web_context = "/onos/ui2",
+    web_context = "/onos/ui",
     deps = COMPILE_DEPS,
 )
 
@@ -323,11 +340,13 @@ osgi_jar_with_tests(
 """
 
 genrule(
-    name = "onos-gui2",
+    name = "onos-web-gui2",
     srcs = [
         ":_onos-gui2-ng-build",
         ":_onos-gui2-base-jar",
         ":_web_inf_classes_files",
+        "//web/gui:onos-gui-lion-for-gui2",
+        "//web/gui:onos-gui-data-for-gui2",
         "src/main/webapp/WEB-INF/web.xml",
     ],
     outs = ["onos-gui2.jar"],
@@ -338,8 +357,13 @@ genrule(
           " for i in $(locations :_web_inf_classes_files); do cp $$ROOT/$$i ./WEB-INF/classes/; done &&" +
           " (cd WEB-INF/classes && jar xf $$ROOT/$${BUILD_FILES[1]}) &&" +
           " jar xf $$ROOT/$(location :_onos-gui2-base-jar) &&" +
-          " find . -type f -exec touch -t 201808280000 {} \; &&" +
-          " jar cmf META-INF/MANIFEST.MF $$ROOT/$@ WEB-INF/web.xml WEB-INF/classes",
+          " unzip -q $$ROOT/$(location //web/gui:onos-gui-lion-for-gui2) web/gui/src/main/resources/**/* &&" +
+          " mv web/gui/src/main/resources/org/onosproject/ui/lion* WEB-INF/classes/org/onosproject/ui/ &&" +
+          " mv web/gui/src/main/resources/core WEB-INF/classes/ &&" +
+          " unzip -q $$ROOT/$(location //web/gui:onos-gui-data-for-gui2) web/gui/src/main/webapp/data/**/* &&" +
+          " mv web/gui/src/main/webapp/data WEB-INF/classes/ &&" +
+          " find . -type f -exec touch -t 201901200000 {} \; &&" +
+          " jar cmf META-INF/MANIFEST.MF $$ROOT/$@ WEB-INF/web.xml WEB-INF/classes OSGI-INF/*.xml",
     output_to_bindir = 1,
     visibility = ["//visibility:public"],
 )
@@ -360,4 +384,12 @@ sh_test(
     deps = [
         "@bazel_tools//tools/bash/runfiles",
     ],
+)
+
+onos_app(
+    category = "Graphical User Interface",
+    description = "ONOS GUI2 - a reengineered version of the original ONOS GUI " +
+                  "based on the latest Angular framework components",
+    title = "ONOS GUI2",
+    url = "http://onosproject.org",
 )

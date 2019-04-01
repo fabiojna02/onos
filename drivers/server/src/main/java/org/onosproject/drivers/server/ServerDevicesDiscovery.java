@@ -781,14 +781,14 @@ public class ServerDevicesDiscovery extends BasicServerDriver
             int cpuId = cpuObjNode.path(CPU_PARAM_ID).asInt();
             float cpuLoad = cpuObjNode.path(CPU_PARAM_LOAD).floatValue();
             int queueId = cpuObjNode.path(CPU_PARAM_QUEUE).asInt();
-            boolean isBusy = cpuObjNode.path(CPU_PARAM_STATUS).booleanValue();
+            int busySince = cpuObjNode.path(CPU_PARAM_STATUS).asInt();
 
             // This is mandatory information
             cpuBuilder.setDeviceId(deviceId)
                     .setId(cpuId)
                     .setLoad(cpuLoad)
                     .setQueue(queueId)
-                    .setIsBusy(isBusy);
+                    .setBusySince(busySince);
 
             // We have all the statistics for this CPU core
             cpuStats.add(cpuBuilder.build());
@@ -848,7 +848,7 @@ public class ServerDevicesDiscovery extends BasicServerDriver
             DefaultPortStatistics.Builder nicBuilder = DefaultPortStatistics.builder();
 
             nicBuilder.setDeviceId(deviceId)
-                    .setPort((int) portNumber)
+                    .setPort(PortNumber.portNumber(portNumber))
                     .setPacketsReceived(rxCount)
                     .setPacketsSent(txCount)
                     .setBytesReceived(rxBytes)

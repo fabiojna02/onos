@@ -57,7 +57,6 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Manages the inventory of OpenStack security group using a {@code ConsistentMap}.
- *
  */
 @Component(immediate = true, service = OpenstackSecurityGroupStore.class)
 public class DistributedSecurityGroupStore
@@ -152,7 +151,8 @@ public class DistributedSecurityGroupStore
         osSecurityGroupStore.clear();
     }
 
-    private class OpenstackSecurityGroupMapListener implements MapEventListener<String, SecurityGroup> {
+    private class OpenstackSecurityGroupMapListener
+                            implements MapEventListener<String, SecurityGroup> {
 
         @Override
         public void event(MapEvent<String, SecurityGroup> event) {
@@ -160,20 +160,20 @@ public class DistributedSecurityGroupStore
                 case INSERT:
                     log.debug("OpenStack security group created {}", event.newValue());
                     eventExecutor.execute(() ->
-                            notifyDelegate(new OpenstackSecurityGroupEvent(
+                                notifyDelegate(new OpenstackSecurityGroupEvent(
                                     OPENSTACK_SECURITY_GROUP_CREATED,
                                     event.newValue().value())));
                     break;
                 case UPDATE:
                     log.debug("OpenStack security group updated {}", event.newValue());
                     eventExecutor.execute(() -> processUpdate(
-                            event.oldValue().value(),
-                            event.newValue().value()));
+                                    event.oldValue().value(),
+                                    event.newValue().value()));
                     break;
                 case REMOVE:
                     log.debug("OpenStack security group removed {}", event.oldValue());
                     eventExecutor.execute(() ->
-                            notifyDelegate(new OpenstackSecurityGroupEvent(
+                                notifyDelegate(new OpenstackSecurityGroupEvent(
                                     OPENSTACK_SECURITY_GROUP_REMOVED,
                                     event.oldValue().value())));
                     break;

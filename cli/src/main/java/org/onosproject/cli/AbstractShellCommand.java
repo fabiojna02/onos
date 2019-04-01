@@ -29,8 +29,10 @@ import org.onosproject.net.Annotations;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.onosproject.net.DefaultAnnotations;
+import org.onosproject.security.AuditService;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import static org.slf4j.LoggerFactory.getLogger;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -39,7 +41,10 @@ import java.util.TreeSet;
  * Base abstraction of Karaf shell commands.
  */
 public abstract class AbstractShellCommand implements Action, CodecContext {
-    protected final Logger log = LoggerFactory.getLogger(this.getClass());
+
+    protected static final Logger log = getLogger(AbstractShellCommand.class);
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Option(name = "-j", aliases = "--json", description = "Output JSON",
             required = false, multiValued = false)
@@ -64,7 +69,7 @@ public abstract class AbstractShellCommand implements Action, CodecContext {
      */
     protected ApplicationId appId() {
         return get(CoreService.class)
-               .registerApplication("org.onosproject.cli");
+                .registerApplication("org.onosproject.cli");
     }
 
     /**
@@ -126,7 +131,7 @@ public abstract class AbstractShellCommand implements Action, CodecContext {
     /**
      * Produces a JSON object from the specified key/value annotations.
      *
-     * @param mapper ObjectMapper to use while converting to JSON
+     * @param mapper      ObjectMapper to use while converting to JSON
      * @param annotations key/value annotations
      * @return JSON object
      */
@@ -148,8 +153,9 @@ public abstract class AbstractShellCommand implements Action, CodecContext {
     }
 
     @Override
-    public Object execute() throws Exception {
+    public final Object execute() throws Exception {
         try {
+            auditCommand();
             doExecute();
         } catch (ServiceNotFoundException e) {
             error(e.getMessage());
@@ -157,15 +163,23 @@ public abstract class AbstractShellCommand implements Action, CodecContext {
         return null;
     }
 
-    protected void doExecute() throws Exception {
-        try {
-            execute();
-        } catch (ServiceNotFoundException e) {
-            error(e.getMessage());
+    // Handles auditing
+    private void auditCommand() {
+        AuditService auditService = get(AuditService.class);
+        if (auditService != null && auditService.isAuditing()) {
+            // FIXME: Compose and log audit message here; this is a hack
+            String user = "foo"; // FIXME
+            String action = "{\"command\" : \"" + Thread.currentThread().getName().substring(5) + "\"}";
+            auditService.logUserAction(user, action);
         }
     }
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    /**
+     * Body of the shell command.
+     *
+     * @throws Exception thrown when problem is encountered
+     */
+    protected abstract void doExecute() throws Exception;
 
     @Override
     public ObjectMapper mapper() {
@@ -186,9 +200,9 @@ public abstract class AbstractShellCommand implements Action, CodecContext {
     /**
      * Generates a Json representation of an object.
      *
-     * @param entity object to generate JSON for
+     * @param entity      object to generate JSON for
      * @param entityClass class to format with - this chooses which codec to use
-     * @param <T> Type of the object being formatted
+     * @param <T>         Type of the object being formatted
      * @return JSON object representation
      */
     public <T> ObjectNode jsonForEntity(T entity, Class<T> entityClass) {

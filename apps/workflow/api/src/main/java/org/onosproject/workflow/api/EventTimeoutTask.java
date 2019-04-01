@@ -17,7 +17,11 @@ package org.onosproject.workflow.api;
 
 import com.google.common.base.MoreObjects;
 
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
+
+import static org.onosproject.workflow.api.CheckCondition.check;
 
 /**
  * Class for event timeout task.
@@ -30,9 +34,9 @@ public final class EventTimeoutTask extends HandlerTask {
     private final String eventType;
 
     /**
-     * Event hint value for finding target event.
+     * Set of Event hint value for finding target event.
      */
-    private final String eventHint;
+    private final Set<String> eventHintSet = new HashSet<>();
 
     /**
      * Constructor of EventTimeoutTask.
@@ -41,7 +45,7 @@ public final class EventTimeoutTask extends HandlerTask {
     private EventTimeoutTask(Builder builder) {
         super(builder);
         this.eventType = builder.eventType;
-        this.eventHint = builder.eventHint;
+        this.eventHintSet.addAll(builder.eventHintSet);
     }
 
     /**
@@ -53,11 +57,11 @@ public final class EventTimeoutTask extends HandlerTask {
     }
 
     /**
-     * Gets event hint value for finding target event.
-     * @return event hint string
+     * Gets set of event hint value for finding target event.
+     * @return event hint set
      */
-    public String eventHint() {
-        return eventHint;
+    public Set<String> eventHintSet() {
+        return eventHintSet;
     }
 
     @Override
@@ -74,16 +78,16 @@ public final class EventTimeoutTask extends HandlerTask {
             return false;
         }
         return Objects.equals(this.eventType(), ((EventTask) obj).eventType())
-                && Objects.equals(this.eventHint(), ((EventTask) obj).eventHint());
+                && Objects.equals(this.eventHintSet(), ((EventTask) obj).eventHint());
     }
 
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(getClass())
                 .add("context", context())
-                .add("workletType", workletType())
+                .add("programCounter", programCounter())
                 .add("eventType", eventType())
-                .add("eventHint", eventHint())
+                .add("eventHint", eventHintSet())
                 .toString();
     }
 
@@ -105,9 +109,9 @@ public final class EventTimeoutTask extends HandlerTask {
         private String eventType;
 
         /**
-         * Event hint value for finding target event.
+         * Set of Event hint value for finding target event.
          */
-        private String eventHint;
+        private Set<String> eventHintSet;
 
         /**
          * Sets Event type (Class name of event).
@@ -121,11 +125,11 @@ public final class EventTimeoutTask extends HandlerTask {
 
         /**
          * Sets event hint string for finding target event.
-         * @param eventHint event hint string
+         * @param eventHintSet Set of event hint string
          * @return builder of EventTimeoutTask
          */
-        public Builder eventHint(String eventHint) {
-            this.eventHint = eventHint;
+        public Builder eventHintSet(Set<String> eventHintSet) {
+            this.eventHintSet = eventHintSet;
             return this;
         }
 
@@ -136,16 +140,19 @@ public final class EventTimeoutTask extends HandlerTask {
         }
 
         @Override
-        public Builder workletType(String workletType) {
-            super.workletType(workletType);
+        public Builder programCounter(ProgramCounter programCounter) {
+            super.programCounter(programCounter);
             return this;
         }
 
         /**
          * Builds EventTimeoutTask.
          * @return instance of EventTimeoutTask
+         * @throws WorkflowException workflow exception
          */
-        public EventTimeoutTask build() {
+        public EventTimeoutTask build() throws WorkflowException {
+            check(eventType != null, "eventType is invalid");
+            check(eventHintSet != null, "eventHintSet is invalid");
             return new EventTimeoutTask(this);
         }
     }

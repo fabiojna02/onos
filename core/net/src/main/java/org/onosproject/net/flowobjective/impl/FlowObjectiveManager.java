@@ -70,6 +70,7 @@ import java.util.concurrent.ExecutorService;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.util.concurrent.Executors.newFixedThreadPool;
+import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.AnnotationKeys.DRIVER;
 import static org.onosproject.net.OsgiPropertyConstants.FOM_NUM_THREADS;
@@ -94,7 +95,6 @@ public class FlowObjectiveManager implements FlowObjectiveService {
 
     private static final String WORKER_PATTERN = "objective-installer-%d";
     private static final String GROUP_THREAD_NAME = "onos/objective-installer";
-    private static final String NUM_THREAD = "numThreads";
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -151,12 +151,15 @@ public class FlowObjectiveManager implements FlowObjectiveService {
     private Map<Integer, DeviceId> nextToDevice = Maps.newConcurrentMap();
 
     ExecutorService executorService;
+    protected ExecutorService devEventExecutor;
 
     @Activate
     protected void activate() {
-        cfgService.registerProperties(getClass());
+        cfgService.registerProperties(FlowObjectiveManager.class);
         executorService = newFixedThreadPool(numThreads,
                                              groupedThreads(GROUP_THREAD_NAME, WORKER_PATTERN, log));
+        devEventExecutor = newSingleThreadScheduledExecutor(
+                                       groupedThreads("onos/flowobj-dev-events", "events-%d", log));
         flowObjectiveStore.setDelegate(delegate);
         deviceService.addListener(deviceListener);
         driverService.addListener(driverListener);
@@ -170,6 +173,8 @@ public class FlowObjectiveManager implements FlowObjectiveService {
         deviceService.removeListener(deviceListener);
         driverService.removeListener(driverListener);
         executorService.shutdown();
+        devEventExecutor.shutdownNow();
+        devEventExecutor = null;
         pipeliners.clear();
         driverHandlers.clear();
         nextToDevice.clear();
@@ -179,7 +184,7 @@ public class FlowObjectiveManager implements FlowObjectiveService {
     @Modified
     protected void modified(ComponentContext context) {
         String propertyValue =
-                Tools.get(context.getProperties(), NUM_THREAD);
+                Tools.get(context.getProperties(), FOM_NUM_THREADS);
         int newNumThreads = isNullOrEmpty(propertyValue) ? numThreads : Integer.parseInt(propertyValue);
 
         if (newNumThreads != numThreads && newNumThreads > 0) {
@@ -436,22 +441,25 @@ public class FlowObjectiveManager implements FlowObjectiveService {
     private class InnerDeviceListener implements DeviceListener {
         @Override
         public void event(DeviceEvent event) {
+          if (devEventExecutor != null) {
             switch (event.type()) {
                 case DEVICE_ADDED:
                 case DEVICE_AVAILABILITY_CHANGED:
                     log.debug("Device either added or availability changed {}",
                               event.subject().id());
-                    if (deviceService.isAvailable(event.subject().id())) {
+                    devEventExecutor.execute(() -> {
+                      if (deviceService.isAvailable(event.subject().id())) {
                         log.debug("Device is now available {}", event.subject().id());
                         getAndInitDevicePipeliner(event.subject().id());
-                    } else {
+                      } else {
                         log.debug("Device is no longer available {}", event.subject().id());
-                    }
+                      }
+                    });
                     break;
                 case DEVICE_UPDATED:
                     // Invalidate pipeliner and handler caches if the driver name
                     // device annotation changed.
-                    invalidatePipelinerIfNecessary(event.subject());
+                    devEventExecutor.execute(() -> invalidatePipelinerIfNecessary(event.subject()));
                     break;
                 case DEVICE_REMOVED:
                     // evict Pipeliner and Handler cache, when
@@ -460,8 +468,10 @@ public class FlowObjectiveManager implements FlowObjectiveService {
                     // System expect the user to clear all existing flows,
                     // before removing device, especially if they intend to
                     // replace driver/pipeliner assigned to the device.
-                    driverHandlers.remove(event.subject().id());
-                    pipeliners.remove(event.subject().id());
+                    devEventExecutor.execute(() -> {
+                      driverHandlers.remove(event.subject().id());
+                      pipeliners.remove(event.subject().id());
+                    });
                     break;
                 case DEVICE_SUSPENDED:
                     break;
@@ -474,6 +484,7 @@ public class FlowObjectiveManager implements FlowObjectiveService {
                 default:
                     break;
             }
+          }
         }
     }
 
